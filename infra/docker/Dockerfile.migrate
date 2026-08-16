@@ -2,12 +2,19 @@ FROM node:24.15.0-bookworm-slim
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
+# This image is the only one that still runs pnpm at runtime, and it does so as the
+# unprivileged `node` user on a network with no egress. Corepack caches prepared package
+# managers under $COREPACK_HOME (default ~/.cache/node/corepack), so preparing as root and
+# running as node would leave the cache unreachable and corepack would try to download
+# pnpm from registry.npmjs.org. Pin the cache to a shared, world-readable path instead.
+ENV COREPACK_HOME=/opt/corepack
 
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends postgresql-client ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && corepack enable \
-    && corepack prepare pnpm@11.22.0 --activate
+    && corepack prepare pnpm@11.22.0 --activate \
+    && chmod -R a+rX /opt/corepack
 
 WORKDIR /workspace
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./

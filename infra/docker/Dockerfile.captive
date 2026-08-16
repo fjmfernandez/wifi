@@ -10,6 +10,11 @@ RUN pnpm install --frozen-lockfile
 
 FROM dependencies AS builder
 ARG SOURCE_COMMIT=development
+# next.config rewrites are evaluated during `next build` and frozen into routes-manifest.json,
+# so the API origin has to be known here. Supplying it only as a runtime environment variable
+# leaves the default http://localhost:3001 baked in and every proxied /api/v1 call returns 500.
+ARG INTERNAL_API_URL=http://api:3001
+ENV INTERNAL_API_URL=$INTERNAL_API_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV BUILD_SHA=$SOURCE_COMMIT
 COPY . .

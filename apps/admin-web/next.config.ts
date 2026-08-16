@@ -1,4 +1,13 @@
+import { resolve } from "node:path";
+
 import type { NextConfig } from "next";
+
+// Next traces the files the standalone bundle needs starting from this root. Left to its
+// default it starts at the app directory and, with pnpm's isolated node_modules layout,
+// drops the symlinks that live inside .pnpm (for example next's own @swc/helpers), so the
+// container starts and immediately dies with MODULE_NOT_FOUND. `next build` always runs
+// with the app directory as its working directory, so the workspace root is two levels up.
+const workspaceRoot = resolve(process.cwd(), "..", "..");
 
 const apiOrigin = process.env.INTERNAL_API_URL ?? "http://localhost:3001";
 const developmentEval = process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : "";
@@ -7,6 +16,14 @@ const upgradeInsecure = process.env.NODE_ENV === "production" ? "; upgrade-insec
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1"],
   output: "standalone",
+  outputFileTracingRoot: workspaceRoot,
+  // next/dist/server/require-hook.js pulls @swc/helpers in at runtime, so the static tracer
+  // never sees it and copies only its package.json. The server then dies with MODULE_NOT_FOUND
+  // on the first request path. Force the whole package in; the glob covers both the flat and
+  // the .pnpm-nested layouts so it survives a change of node-linker.
+  outputFileTracingIncludes: {
+    "/**/*": ["../../node_modules/**/@swc/helpers/**"],
+  },
   poweredByHeader: false,
   reactStrictMode: true,
   transpilePackages: ["@wifi/ui"],

@@ -14,6 +14,15 @@ COPY . .
 RUN pnpm --filter @wifi/contracts build \
     && pnpm --filter @wifi-entelsat/database build \
     && pnpm --filter @wifi/worker build
+# See Dockerfile.api: pnpm's isolated layout keeps each workspace package's dependencies in
+# its own node_modules, so the runtime stage must copy those too, and the directories have
+# to exist even when a package is left with no production dependencies.
+# CI=true lets pnpm purge the dev node_modules non-interactively when switching to a
+# production-only install; without it pnpm aborts with ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY.
+RUN CI=true pnpm install --prod --frozen-lockfile --filter @wifi/worker... \
+    && mkdir -p apps/worker/node_modules \
+       packages/contracts/node_modules \
+       packages/database/node_modules
 
 FROM node:24.15.0-bookworm-slim AS runtime
 ENV NODE_ENV=production
@@ -22,10 +31,13 @@ ENV WORKER_HEALTH_PORT=3003
 WORKDIR /workspace
 COPY --from=builder --chown=node:node /workspace/node_modules ./node_modules
 COPY --from=builder --chown=node:node /workspace/apps/worker/package.json ./apps/worker/package.json
+COPY --from=builder --chown=node:node /workspace/apps/worker/node_modules ./apps/worker/node_modules
 COPY --from=builder --chown=node:node /workspace/apps/worker/dist ./apps/worker/dist
 COPY --from=builder --chown=node:node /workspace/packages/contracts/package.json ./packages/contracts/package.json
+COPY --from=builder --chown=node:node /workspace/packages/contracts/node_modules ./packages/contracts/node_modules
 COPY --from=builder --chown=node:node /workspace/packages/contracts/dist ./packages/contracts/dist
 COPY --from=builder --chown=node:node /workspace/packages/database/package.json ./packages/database/package.json
+COPY --from=builder --chown=node:node /workspace/packages/database/node_modules ./packages/database/node_modules
 COPY --from=builder --chown=node:node /workspace/packages/database/dist ./packages/database/dist
 USER node
 EXPOSE 3003
