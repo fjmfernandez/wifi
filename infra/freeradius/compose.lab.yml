@@ -1,0 +1,137 @@
+name: wifi-entelsat-radius-lab
+
+x-radius-service: &radius-service
+  build:
+    context: .
+    dockerfile: Dockerfile
+  restart: unless-stopped
+  init: true
+  # The upstream image defines freerad as uid/gid 101.  Running the wrapper as
+  # that identity makes cap_drop: ALL effective without relying on root's
+  # removed DAC/CHOWN capabilities.
+  user: "101:101"
+  read_only: true
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  environment: &radius-environment
+    RADIUS_CLIENTS_FILE: /run/secrets/radius_clients
+    RADIUS_DB_PASSWORD_FILE: /run/secrets/radius_db_password
+    RADIUS_DB_HOST: postgres
+    RADIUS_DB_PORT: "5432"
+    RADIUS_DB_NAME: wifi_entelsat
+    RADIUS_DB_USER: radius_runtime_login
+    RADIUS_DB_SSLMODE: disable
+    RADIUS_ALLOW_INSECURE_DB: lab-only
+  secrets:
+    - radius_clients
+    - radius_db_password
+  tmpfs:
+    - /run:uid=101,gid=101,mode=0755
+    - /tmp:mode=1777
+  depends_on:
+    postgres:
+      condition: service_healthy
+  networks:
+    radius_lab: {}
+
+services:
+  postgres:
+    image: postgres:18.4-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: wifi_entelsat
+      POSTGRES_USER: lab_owner
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_owner_password
+      RADIUS_DB_PASSWORD_FILE: /run/secrets/radius_db_password
+    secrets:
+      - postgres_owner_password
+      - radius_db_password
+      - radius_test_password
+    volumes:
+      - radius-postgres:/var/lib/postgresql
+      - ./lab/sql/001-radius-runtime.sql:/docker-entrypoint-initdb.d/001-radius-runtime.sql:ro
+      - ./lab/postgres/010-create-radius-role.sh:/docker-entrypoint-initdb.d/010-create-radius-role.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lab_owner -d wifi_entelsat"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      radius_lab:
+        ipv4_address: 172.31.50.20
+
+  radius-a:
+    <<: *radius-service
+    hostname: radius-a
+    ports:
+      - "127.0.0.1:${RADIUS_A_AUTH_PORT:-1812}:1812/udp"
+      - "127.0.0.1:${RADIUS_A_ACCT_PORT:-1813}:1813/udp"
+    volumes:
+      - radius-a-spool:/var/log/freeradius
+    networks:
+      radius_lab:
+        ipv4_address: 172.31.50.11
+
+  radius-b:
+    <<: *radius-service
+    hostname: radius-b
+    ports:
+      - "127.0.0.1:${RADIUS_B_AUTH_PORT:-2812}:1812/udp"
+      - "127.0.0.1:${RADIUS_B_ACCT_PORT:-2813}:1813/udp"
+    volumes:
+      - radius-b-spool:/var/log/freeradius
+    networks:
+      radius_lab:
+        ipv4_address: 172.31.50.12
+
+  nas-simulator:
+    build:
+      context: .
+      dockerfile: lab/nas-simulator.Dockerfile
+    profiles: ["tools"]
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      RADIUS_CLIENTS_FILE: /run/secrets/radius_clients
+      RADIUS_TEST_PASSWORD_FILE: /run/secrets/radius_test_password
+      RADIUS_SERVER: radius-a
+      RADIUS_AUTH_PORT: "1812"
+      RADIUS_ACCT_PORT: "1813"
+      RADIUS_NAS_IDENTIFIER: lab-router
+      RADIUS_CLIENT_NAME: lab_nas
+    secrets:
+      - radius_clients
+      - radius_test_password
+    tmpfs:
+      - /tmp:mode=1777
+    command: ["sleep", "infinity"]
+    networks:
+      radius_lab:
+        ipv4_address: 172.31.50.10
+
+secrets:
+  postgres_owner_password:
+    file: ./secrets/postgres_owner_password
+  radius_db_password:
+    file: ./secrets/radius_db_password
+  radius_clients:
+    file: ./secrets/radius_clients.tsv
+  radius_test_password:
+    file: ./secrets/radius_test_password
+
+volumes:
+  radius-postgres:
+  radius-a-spool:
+  radius-b-spool:
+
+networks:
+  radius_lab:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.31.50.0/24

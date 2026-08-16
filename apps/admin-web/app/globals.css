@@ -1,0 +1,61 @@
+@import "tailwindcss";
+@source "../../../packages/ui/src";
+
+@theme {
+  --color-brand-50: #eef7ff;
+  --color-brand-100: #d9ecff;
+  --color-brand-200: #bce0ff;
+  --color-brand-300: #8eccff;
+  --color-brand-400: #59adff;
+  --color-brand-500: #338cff;
+  --color-brand-600: #1a6cf5;
+  --color-brand-700: #1558e1;
+  --color-brand-800: #1949b6;
+  --color-brand-900: #1a408f;
+  --color-brand-950: #142957;
+  --font-sans: "Inter", "Segoe UI", system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+html {
+  background: #f8fafc;
+  overflow-x: clip;
+}
+body {
+  margin: 0;
+  min-height: 100vh;
+  overflow-x: clip;
+  background: #f8fafc;
+  color: #0f172a;
+  font-family: var(--font-sans);
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+::selection {
+  background: #bce0ff;
+  color: #142957;
+}
+
+.grid-noise {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

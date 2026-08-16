@@ -1,0 +1,34 @@
+sql sql_radius_runtime {
+    dialect = "postgresql"
+    driver = "rlm_sql_postgresql"
+
+    # Generated from a mounted password secret by the entrypoint. PostgreSQL
+    # TLS defaults to verify-full; only the isolated lab may disable it.
+    $INCLUDE /run/freeradius/sql-runtime.conf
+
+    authcheck_table = "radius_runtime.radcheck_compat"
+    authreply_table = "radius_runtime.radreply_compat"
+    read_groups = no
+    read_profiles = no
+    delete_stale_sessions = no
+    auto_escape = yes
+
+    postgresql {
+        send_application_name = yes
+        application_name = "wifi-entelsat-freeradius-3.2.10"
+    }
+
+    pool {
+        start = 1
+        min = 1
+        max = 8
+        spare = 1
+        uses = 0
+        retry_delay = 2
+        lifetime = 0
+        idle_timeout = 60
+        max_retries = 3
+    }
+
+    $INCLUDE /etc/raddb/mods-config/sql/main/postgresql/entelsat-queries.conf
+}

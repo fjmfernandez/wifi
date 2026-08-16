@@ -1,0 +1,13 @@
+.git
+.next
+.turbo
+coverage
+dist
+node_modules
+pnpm-lock.yaml
+
+# Prisma emits this client on every build; it is git-ignored and not hand-edited.
+**/generated
+
+# Architecture documents are reviewed independently from code formatting.
+docs

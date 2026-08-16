@@ -1,0 +1,15 @@
+.git
+.github
+.turbo
+**/.next
+**/dist
+**/node_modules
+node_modules
+**/.env
+**/.env.*
+!**/.env.example
+infra/freeradius/secrets
+coverage
+playwright-report
+test-results
+*.log

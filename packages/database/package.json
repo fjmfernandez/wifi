@@ -1,0 +1,44 @@
+{
+  "name": "@wifi-entelsat/database",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "development": "./src/index.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "generate": "prisma generate",
+    "build": "prisma generate && tsc -p tsconfig.build.json",
+    "clean": "node -e \"const fs=require('node:fs'); for (const path of ['dist','generated','src/generated']) fs.rmSync(path,{recursive:true,force:true})\"",
+    "validate": "prisma validate",
+    "migrate:deploy": "prisma migrate deploy",
+    "seed": "prisma db seed",
+    "typecheck": "prisma generate && tsc --noEmit",
+    "test": "prisma generate && vitest run",
+    "test:sql": "vitest run tests/rls-isolation.test.ts"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "7.9.1",
+    "@prisma/client": "7.9.1",
+    "pg": "8.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "@types/pg": "8.21.0",
+    "dotenv": "17.4.2",
+    "prisma": "7.9.1",
+    "tsx": "4.23.12",
+    "typescript": "6.0.3",
+    "vitest": "4.1.10"
+  }
+}

@@ -1,0 +1,12 @@
+detail detail_post_auth {
+    filename = ${radacctdir}/entelsat/post-auth/detail-%Y%m%d:%H
+    permissions = 0600
+    escape_filenames = yes
+    locking = yes
+    dates_as_integer = yes
+
+    suppress {
+        User-Password
+        CHAP-Password
+    }
+}

@@ -1,0 +1,79 @@
+server entelsat {
+    listen {
+        type = auth
+        ipaddr = *
+        port = 1812
+    }
+
+    listen {
+        type = acct
+        ipaddr = *
+        port = 1813
+    }
+
+    authorize {
+        filter_username
+        preprocess
+
+        if (!&User-Name || !&NAS-Identifier) {
+            reject
+        }
+
+        # CHAP marks Auth-Type when CHAP-Password is present. The credential
+        # projection still decides which verifier is available.
+        chap
+
+        sql_radius_runtime
+        if (notfound || fail) {
+            reject
+        }
+
+        # PAP is deliberately last so it uses the known-good verifier loaded
+        # into the control list by SQL.
+        pap
+    }
+
+    authenticate {
+        Auth-Type PAP {
+            pap
+        }
+
+        Auth-Type CHAP {
+            chap
+        }
+    }
+
+    preacct {
+        preprocess
+        acct_unique
+
+        if (!&User-Name || !&NAS-Identifier || !&Acct-Session-Id || !&Acct-Status-Type) {
+            reject
+        }
+
+        if (&Acct-Status-Type != Start && &Acct-Status-Type != Interim-Update && &Acct-Status-Type != Stop) {
+            reject
+        }
+    }
+
+    accounting {
+        # RFC 2866 requires no Accounting-Response if durable recording fails.
+        # The detail spool is written first; SQL failure then propagates and
+        # makes the NAS retry the same idempotent event.
+        detail_accounting
+        sql_radius_runtime
+    }
+
+    post-auth {
+        # Never log User-Password or CHAP-Password. SQL failure here is
+        # best-effort because an already valid Access-Accept must not be turned
+        # into a network outage merely by the diagnostic inbox.
+        detail_post_auth
+        -sql_radius_runtime
+
+        Post-Auth-Type Reject {
+            detail_post_auth
+            -sql_radius_runtime
+        }
+    }
+}

@@ -1,0 +1,35 @@
+{
+  "name": "@wifi-entelsat/workspace",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@11.22.0",
+  "engines": {
+    "node": ">=24.15.0 <25",
+    "pnpm": "11.22.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "clean": "turbo run clean && node -e \"require('node:fs').rmSync('.turbo',{recursive:true,force:true})\"",
+    "dev": "turbo run dev --parallel",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "infra:config": "docker compose --env-file infra/dev/.env -f infra/dev/compose.yaml config",
+    "infra:down": "docker compose --env-file infra/dev/.env -f infra/dev/compose.yaml down",
+    "infra:logs": "docker compose --env-file infra/dev/.env -f infra/dev/compose.yaml logs -f",
+    "infra:up": "docker compose --env-file infra/dev/.env -f infra/dev/compose.yaml up -d --wait postgres redis minio mailpit otel-collector && docker compose --env-file infra/dev/.env -f infra/dev/compose.yaml run --rm minio-init",
+    "lint": "eslint . --max-warnings 0",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "24.13.3",
+    "eslint": "10.8.1",
+    "eslint-config-prettier": "10.1.8",
+    "prettier": "3.9.6",
+    "turbo": "2.10.10",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.67.0"
+  }
+}

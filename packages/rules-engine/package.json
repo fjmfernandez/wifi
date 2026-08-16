@@ -1,0 +1,27 @@
+{
+  "name": "@wifi/rules-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "development": "./src/index.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@wifi/contracts": "workspace:*",
+    "@wifi/radius": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "6.0.3",
+    "vitest": "3.2.4"
+  }
+}

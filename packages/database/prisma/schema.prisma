@@ -1,0 +1,1529 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/client"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["agent_runtime", "app", "audit", "radius_runtime"]
+}
+
+model Tenant {
+  id              String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  slug            String   @unique @db.VarChar(80)
+  name            String   @db.VarChar(160)
+  status          String   @default("active") @db.VarChar(24)
+  dataRegion      String   @map("data_region") @db.VarChar(32)
+  defaultTimezone String   @default("Europe/Madrid") @map("default_timezone") @db.VarChar(64)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  memberships        TenantMembership[]
+  roles              TenantRole[]
+  organizations      Organization[]
+  siteGroups         SiteGroup[]
+  accessPolicies     AccessPolicy[]
+  portals            Portal[]
+  processingPurposes ProcessingPurpose[]
+  legalDocuments     LegalDocument[]
+  identitySpaces     IdentitySpace[]
+  blockedEntities    BlockedEntity[]
+  idempotencyKeys    IdempotencyKey[]
+  outboxEvents       OutboxEvent[]
+  exports            Export[]
+  auditLogs          AuditLog[]
+  siteAgentEnrollmentTokens SiteAgentEnrollmentToken[]
+  siteAgentIdentities       SiteAgentIdentity[]
+
+  @@map("tenants")
+  @@schema("app")
+}
+
+model AdminUser {
+  id              String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  emailCiphertext Bytes    @map("email_ciphertext")
+  emailKeyVersion String   @map("email_key_version") @db.VarChar(80)
+  emailHmac       Bytes    @unique @map("email_hmac")
+  status          String   @default("active") @db.VarChar(24)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  memberships         TenantMembership[]
+  credential          AdminCredential?
+  sessions            AdminSession[]
+  totpFactors         AdminTotpFactor[]
+  webauthnCredentials AdminWebAuthnCredential[]
+
+  @@map("admin_users")
+  @@schema("app")
+}
+
+model AdminCredential {
+  id                String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  userId            String    @unique @map("user_id") @db.Uuid
+  passwordHash      String    @map("password_hash") @db.Text
+  hashAlgorithm     String    @default("scrypt") @map("hash_algorithm") @db.VarChar(32)
+  hashVersion       Int       @default(1) @map("hash_version")
+  failedAttempts    Int       @default(0) @map("failed_attempts")
+  lockedUntil       DateTime? @map("locked_until") @db.Timestamptz(6)
+  passwordChangedAt DateTime  @default(now()) @map("password_changed_at") @db.Timestamptz(6)
+  passwordExpiresAt DateTime? @map("password_expires_at") @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("admin_credentials")
+  @@schema("app")
+}
+
+model AdminSession {
+  id                  String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  userId              String    @map("user_id") @db.Uuid
+  tokenHash           Bytes     @unique @map("token_hash")
+  authStrength        String    @default("password") @map("auth_strength") @db.VarChar(32)
+  mfaVerifiedAt       DateTime? @map("mfa_verified_at") @db.Timestamptz(6)
+  ipCiphertext        Bytes?    @map("ip_ciphertext")
+  ipHmac              Bytes?    @map("ip_hmac")
+  userAgentCiphertext Bytes?    @map("user_agent_ciphertext")
+  userAgentHmac       Bytes?    @map("user_agent_hmac")
+  lastSeenAt          DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  idleExpiresAt       DateTime  @map("idle_expires_at") @db.Timestamptz(6)
+  expiresAt           DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt           DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokeReason        String?   @map("revoke_reason") @db.VarChar(160)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt, expiresAt])
+  @@map("admin_sessions")
+  @@schema("app")
+}
+
+model AdminTotpFactor {
+  id                 String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  userId             String    @map("user_id") @db.Uuid
+  label              String    @db.VarChar(80)
+  secretCiphertext   Bytes     @map("secret_ciphertext")
+  keyVersion         String    @map("key_version") @db.VarChar(80)
+  recoveryCodeHashes Bytes[]   @default([]) @map("recovery_code_hashes")
+  verifiedAt         DateTime? @map("verified_at") @db.Timestamptz(6)
+  lastUsedAt         DateTime? @map("last_used_at") @db.Timestamptz(6)
+  revokedAt          DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, label])
+  @@index([userId, revokedAt])
+  @@map("admin_totp_factors")
+  @@schema("app")
+}
+
+model AdminWebAuthnCredential {
+  id             String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  label          String    @db.VarChar(80)
+  credentialId   Bytes     @unique @map("credential_id")
+  publicKeyCose  Bytes     @map("public_key_cose")
+  signCount      BigInt    @default(0) @map("sign_count")
+  transports     String[]  @default([])
+  aaguid         String?   @db.Uuid
+  backupEligible Boolean   @default(false) @map("backup_eligible")
+  backupState    Boolean   @default(false) @map("backup_state")
+  lastUsedAt     DateTime? @map("last_used_at") @db.Timestamptz(6)
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, label])
+  @@index([userId, revokedAt])
+  @@map("admin_webauthn_credentials")
+  @@schema("app")
+}
+
+model TenantMembership {
+  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  status    String   @default("active") @db.VarChar(24)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  user        AdminUser        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  assignments RoleAssignment[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, userId])
+  @@index([userId, status])
+  @@map("tenant_memberships")
+  @@schema("app")
+}
+
+model PermissionCatalog {
+  code        String   @id @db.VarChar(120)
+  description String   @db.VarChar(300)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  rolePermissions RolePermission[]
+
+  @@map("permission_catalog")
+  @@schema("app")
+}
+
+model TenantRole {
+  id         String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  code       String   @db.VarChar(80)
+  name       String   @db.VarChar(120)
+  systemRole Boolean  @default(false) @map("system_role")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  permissions RolePermission[]
+  assignments RoleAssignment[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, code])
+  @@map("tenant_roles")
+  @@schema("app")
+}
+
+model RolePermission {
+  id             String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId       String @map("tenant_id") @db.Uuid
+  roleId         String @map("role_id") @db.Uuid
+  permissionCode String @map("permission_code") @db.VarChar(120)
+
+  role       TenantRole        @relation(fields: [tenantId, roleId], references: [tenantId, id], onDelete: Cascade)
+  permission PermissionCatalog @relation(fields: [permissionCode], references: [code], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, roleId, permissionCode])
+  @@map("role_permissions")
+  @@schema("app")
+}
+
+model RoleAssignment {
+  id             String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  membershipId   String    @map("membership_id") @db.Uuid
+  roleId         String    @map("role_id") @db.Uuid
+  scopeType      String    @map("scope_type") @db.VarChar(24)
+  organizationId String?   @map("organization_id") @db.Uuid
+  siteGroupId    String?   @map("site_group_id") @db.Uuid
+  siteId         String?   @map("site_id") @db.Uuid
+  startsAt       DateTime  @default(now()) @map("starts_at") @db.Timestamptz(6)
+  expiresAt      DateTime? @map("expires_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  membership   TenantMembership @relation(fields: [tenantId, membershipId], references: [tenantId, id], onDelete: Cascade)
+  role         TenantRole       @relation(fields: [tenantId, roleId], references: [tenantId, id], onDelete: Restrict)
+  organization Organization?    @relation(fields: [tenantId, organizationId], references: [tenantId, id], onDelete: Restrict)
+  siteGroup    SiteGroup?       @relation(fields: [tenantId, siteGroupId], references: [tenantId, id], onDelete: Restrict)
+  site         Site?            @relation(fields: [tenantId, siteId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@index([tenantId, membershipId, expiresAt])
+  @@map("role_assignments")
+  @@schema("app")
+}
+
+model Organization {
+  id         String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  code       String    @db.VarChar(64)
+  name       String    @db.VarChar(160)
+  legalName  String?   @map("legal_name") @db.VarChar(200)
+  status     String    @default("active") @db.VarChar(24)
+  archivedAt DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  sites             Site[]
+  siteGroups        SiteGroup[]
+  roleAssignments   RoleAssignment[]
+  policyAssignments PolicyAssignment[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+  @@map("organizations")
+  @@schema("app")
+}
+
+model SiteGroup {
+  id             String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  organizationId String?   @map("organization_id") @db.Uuid
+  name           String    @db.VarChar(160)
+  archivedAt     DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  organization      Organization?      @relation(fields: [tenantId, organizationId], references: [tenantId, id], onDelete: Restrict)
+  memberships       SiteGroupSite[]
+  configParentSites Site[]             @relation("SiteConfigParent")
+  roleAssignments   RoleAssignment[]
+  policyAssignments PolicyAssignment[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, organizationId])
+  @@map("site_groups")
+  @@schema("app")
+}
+
+model Site {
+  id                  String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId            String    @map("tenant_id") @db.Uuid
+  organizationId      String    @map("organization_id") @db.Uuid
+  configParentGroupId String?   @map("config_parent_group_id") @db.Uuid
+  code                String    @db.VarChar(64)
+  name                String    @db.VarChar(160)
+  status              String    @default("active") @db.VarChar(24)
+  timezone            String    @db.VarChar(64)
+  countryCode         String    @map("country_code") @db.Char(2)
+  languages           String[]  @default(["es"])
+  branding            Json      @default("{}") @db.JsonB
+  archivedAt          DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization       Organization        @relation(fields: [tenantId, organizationId], references: [tenantId, id], onDelete: Restrict)
+  configParentGroup  SiteGroup?          @relation("SiteConfigParent", fields: [tenantId, configParentGroupId], references: [tenantId, id], onDelete: Restrict)
+  groupMemberships   SiteGroupSite[]
+  zones              Zone[]
+  gateways           Gateway[]
+  roleAssignments    RoleAssignment[]
+  policyAssignments  PolicyAssignment[]
+  loginMethods       LoginMethod[]
+  portalPublications PortalPublication[]
+  voucherBatches     VoucherBatch[]
+  authorizedDevices  AuthorizedDevice[]
+  siteAgentEnrollmentTokens SiteAgentEnrollmentToken[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, organizationId, status])
+  @@map("sites")
+  @@schema("app")
+}
+
+model SiteGroupSite {
+  id          String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  siteGroupId String   @map("site_group_id") @db.Uuid
+  siteId      String   @map("site_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  siteGroup SiteGroup @relation(fields: [tenantId, siteGroupId], references: [tenantId, id], onDelete: Cascade)
+  site      Site      @relation(fields: [tenantId, siteId], references: [tenantId, id], onDelete: Cascade)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, siteGroupId, siteId])
+  @@map("site_group_sites")
+  @@schema("app")
+}
+
+model Zone {
+  id         String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  siteId     String    @map("site_id") @db.Uuid
+  name       String    @db.VarChar(120)
+  kind       String    @db.VarChar(32)
+  archivedAt DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  site               Site                 @relation(fields: [tenantId, siteId], references: [tenantId, id], onDelete: Restrict)
+  ssids              Ssid[]
+  gatewayBindings    GatewayZoneBinding[]
+  policyAssignments  PolicyAssignment[]
+  portalPublications PortalPublication[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, siteId])
+  @@map("zones")
+  @@schema("app")
+}
+
+model Ssid {
+  id           String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  zoneId       String    @map("zone_id") @db.Uuid
+  name         String    @db.VarChar(64)
+  instructions Json      @default("{}") @db.JsonB
+  archivedAt   DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  zone Zone @relation(fields: [tenantId, zoneId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@index([tenantId, zoneId])
+  @@map("ssids")
+  @@schema("app")
+}
+
+model Gateway {
+  id              String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  siteId          String    @map("site_id") @db.Uuid
+  name            String    @db.VarChar(120)
+  model           String?   @db.VarChar(100)
+  serial          String?   @db.VarChar(100)
+  routerOsVersion String?   @map("routeros_version") @db.VarChar(40)
+  architecture    String?   @db.VarChar(40)
+  nasIdentifier   String    @unique @map("nas_identifier") @db.VarChar(128)
+  status          String    @default("pending") @db.VarChar(24)
+  lastSeenAt      DateTime? @map("last_seen_at") @db.Timestamptz(6)
+  retiredAt       DateTime? @map("retired_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  site                 Site                      @relation(fields: [tenantId, siteId], references: [tenantId, id], onDelete: Restrict)
+  zoneBindings         GatewayZoneBinding[]
+  secretVersions       GatewaySecretVersion[]
+  configRevisions      GatewayConfigRevision[]
+  captiveAttempts      CaptiveAttempt[]
+  accessAuthorizations AccessAuthorization[]
+  radiusSessions       RadiusSession[]
+  radiusCredentials    RadiusRuntimeCredential[]
+  nasRegistry          RadiusNasRegistry?
+  accountingInbox      RadiusAccountingInbox[]
+  postAuthInbox        RadiusPostAuthInbox[]
+  captiveLocators      GatewayCaptiveLocator[]
+  siteAgentEnrollmentTokens SiteAgentEnrollmentToken[]
+  siteAgentIdentities       SiteAgentIdentity[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, id, siteId])
+  @@index([tenantId, siteId, status, lastSeenAt])
+  @@map("gateways")
+  @@schema("app")
+}
+
+model GatewayCaptiveLocator {
+  id                  String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId            String    @map("tenant_id") @db.Uuid
+  gatewayId           String    @map("gateway_id") @db.Uuid
+  locatorHash         Bytes     @unique @map("locator_hash")
+  allowedLoginOrigins String[]  @default([]) @map("allowed_login_origins")
+  replacesLocatorId   String?   @map("replaces_locator_id") @db.Uuid
+  notBefore           DateTime  @default(now()) @map("not_before") @db.Timestamptz(6)
+  expiresAt           DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt           DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  gateway    Gateway                 @relation(fields: [tenantId, gatewayId], references: [tenantId, id], onDelete: Restrict)
+  replaces   GatewayCaptiveLocator?  @relation("GatewayCaptiveLocatorRotation", fields: [tenantId, replacesLocatorId], references: [tenantId, id], onDelete: Restrict)
+  replacedBy GatewayCaptiveLocator[] @relation("GatewayCaptiveLocatorRotation")
+
+  @@unique([tenantId, id])
+  @@index([tenantId, gatewayId, expiresAt])
+  @@map("gateway_captive_locators")
+  @@schema("app")
+}
+
+model SiteAgentEnrollmentToken {
+  id         String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  siteId     String    @map("site_id") @db.Uuid
+  gatewayId  String    @map("gateway_id") @db.Uuid
+  identityId String    @default(dbgenerated("uuidv7()")) @unique @map("identity_id") @db.Uuid
+  tokenHash  Bytes     @unique @map("token_hash")
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz(6)
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant   Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  site     Site               @relation(fields: [tenantId, siteId], references: [tenantId, id], onDelete: Restrict)
+  gateway  Gateway            @relation(fields: [tenantId, gatewayId, siteId], references: [tenantId, id, siteId], onDelete: Restrict)
+  identity SiteAgentIdentity?
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, id, siteId, gatewayId, identityId])
+  @@index([tenantId, gatewayId, expiresAt])
+  @@index([expiresAt, consumedAt, revokedAt])
+  @@map("site_agent_enrollment_tokens")
+  @@schema("agent_runtime")
+}
+
+model SiteAgentIdentity {
+  id                        String    @id @db.Uuid
+  tenantId                  String    @map("tenant_id") @db.Uuid
+  siteId                    String    @map("site_id") @db.Uuid
+  gatewayId                 String    @map("gateway_id") @db.Uuid
+  enrollmentTokenId         String    @unique @map("enrollment_token_id") @db.Uuid
+  protocolVersion           Int       @map("protocol_version") @db.SmallInt
+  agentVersion              String    @map("agent_version") @db.VarChar(64)
+  hostname                  String    @db.VarChar(253)
+  publicKeySpki             Bytes     @map("public_key_spki")
+  publicKeySha256           Bytes     @unique @map("public_key_sha256")
+  enrollmentNonceHash       Bytes     @unique @map("enrollment_nonce_hash")
+  capabilities              String[]
+  status                    String    @default("active") @db.VarChar(24)
+  certificatePem            String    @map("certificate_pem") @db.Text
+  certificateSerial         String    @unique @map("certificate_serial") @db.VarChar(160)
+  certificateFingerprintSha Bytes     @unique @map("certificate_fingerprint_sha256")
+  certificateNotBefore      DateTime  @map("certificate_not_before") @db.Timestamptz(6)
+  certificateNotAfter       DateTime  @map("certificate_not_after") @db.Timestamptz(6)
+  lastIssuedCommandSequence BigInt    @default(0) @map("last_issued_command_sequence")
+  lastSeenAt                DateTime? @map("last_seen_at") @db.Timestamptz(6)
+  lastHeartbeatAt           DateTime? @map("last_heartbeat_at") @db.Timestamptz(6)
+  revokedAt                 DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokeReason              String?   @map("revoke_reason") @db.VarChar(300)
+  enrolledAt                DateTime  @default(now()) @map("enrolled_at") @db.Timestamptz(6)
+  updatedAt                 DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant          Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  gateway         Gateway                  @relation(fields: [tenantId, gatewayId, siteId], references: [tenantId, id, siteId], onDelete: Restrict)
+  enrollmentToken SiteAgentEnrollmentToken @relation(fields: [tenantId, enrollmentTokenId, siteId, gatewayId, id], references: [tenantId, id, siteId, gatewayId, identityId], onDelete: Restrict)
+  commands        SiteAgentCommand[]
+  events          SiteAgentEvent[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, id, siteId, gatewayId])
+  @@unique([tenantId, enrollmentTokenId, siteId, gatewayId, id])
+  @@index([tenantId, gatewayId, status])
+  @@index([status, certificateNotAfter])
+  @@map("site_agent_identities")
+  @@schema("agent_runtime")
+}
+
+model SiteAgentCommand {
+  id             String    @id @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  siteId         String    @map("site_id") @db.Uuid
+  gatewayId      String    @map("gateway_id") @db.Uuid
+  identityId     String    @map("identity_id") @db.Uuid
+  protocolVersion Int      @map("protocol_version") @db.SmallInt
+  sequence       BigInt
+  type           String    @db.VarChar(80)
+  payload        Json      @db.JsonB
+  issuedAt       DateTime  @map("issued_at") @db.Timestamptz(6)
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(6)
+  signature      String    @db.VarChar(688)
+  commandDigest  String    @map("command_digest") @db.Char(64)
+  state          String    @default("queued") @db.VarChar(24)
+  leaseCount     Int       @default(0) @map("lease_count")
+  leasedAt       DateTime? @map("leased_at") @db.Timestamptz(6)
+  leaseExpiresAt DateTime? @map("lease_expires_at") @db.Timestamptz(6)
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  identity SiteAgentIdentity       @relation(fields: [tenantId, identityId, siteId, gatewayId], references: [tenantId, id, siteId, gatewayId], onDelete: Restrict)
+  result   SiteAgentCommandResult?
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, identityId, sequence])
+  @@unique([tenantId, identityId, id, sequence])
+  @@index([tenantId, identityId, state, sequence])
+  @@index([state, leaseExpiresAt, sequence])
+  @@map("site_agent_commands")
+  @@schema("agent_runtime")
+}
+
+model SiteAgentEvent {
+  id               String   @id @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  siteId           String   @map("site_id") @db.Uuid
+  gatewayId        String   @map("gateway_id") @db.Uuid
+  identityId       String   @map("identity_id") @db.Uuid
+  protocolVersion  Int      @map("protocol_version") @db.SmallInt
+  type             String   @db.VarChar(40)
+  occurredAt       DateTime @map("occurred_at") @db.Timestamptz(6)
+  payload          Json     @db.JsonB
+  eventFingerprint String   @map("event_fingerprint") @db.Char(64)
+  receivedAt       DateTime @default(now()) @map("received_at") @db.Timestamptz(6)
+
+  identity      SiteAgentIdentity       @relation(fields: [tenantId, identityId, siteId, gatewayId], references: [tenantId, id, siteId, gatewayId], onDelete: Restrict)
+  commandResult SiteAgentCommandResult?
+  heartbeat     SiteAgentHeartbeat?
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, identityId, id])
+  @@index([tenantId, identityId, occurredAt])
+  @@index([type, receivedAt])
+  @@map("site_agent_events")
+  @@schema("agent_runtime")
+}
+
+model SiteAgentCommandResult {
+  eventId         String   @id @map("event_id") @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  identityId      String   @map("identity_id") @db.Uuid
+  commandId       String   @map("command_id") @db.Uuid
+  commandSequence BigInt   @map("command_sequence")
+  status          String   @db.VarChar(24)
+  code            String   @db.VarChar(80)
+  completedAt     DateTime @map("completed_at") @db.Timestamptz(6)
+  evidence        Json     @db.JsonB
+  receivedAt      DateTime @default(now()) @map("received_at") @db.Timestamptz(6)
+
+  event   SiteAgentEvent   @relation(fields: [tenantId, identityId, eventId], references: [tenantId, identityId, id], onDelete: Restrict)
+  command SiteAgentCommand @relation(fields: [tenantId, identityId, commandId, commandSequence], references: [tenantId, identityId, id, sequence], onDelete: Restrict)
+
+  @@unique([tenantId, eventId])
+  @@unique([tenantId, commandId])
+  @@unique([tenantId, identityId, eventId])
+  @@unique([tenantId, identityId, commandId, commandSequence])
+  @@index([tenantId, identityId, completedAt])
+  @@map("site_agent_command_results")
+  @@schema("agent_runtime")
+}
+
+model SiteAgentHeartbeat {
+  eventId             String   @id @map("event_id") @db.Uuid
+  tenantId            String   @map("tenant_id") @db.Uuid
+  identityId          String   @map("identity_id") @db.Uuid
+  agentVersion        String   @map("agent_version") @db.VarChar(64)
+  buildSha            String   @map("build_sha") @db.VarChar(64)
+  mode                String   @db.VarChar(24)
+  applyStatus         String   @map("apply_status") @db.VarChar(40)
+  pendingCommands     BigInt   @map("pending_commands")
+  pendingOutboxEvents BigInt   @map("pending_outbox_events")
+  occurredAt          DateTime @map("occurred_at") @db.Timestamptz(6)
+  receivedAt          DateTime @default(now()) @map("received_at") @db.Timestamptz(6)
+
+  event SiteAgentEvent @relation(fields: [tenantId, identityId, eventId], references: [tenantId, identityId, id], onDelete: Restrict)
+
+  @@unique([tenantId, eventId])
+  @@unique([tenantId, identityId, eventId])
+  @@index([tenantId, identityId, occurredAt])
+  @@map("site_agent_heartbeats")
+  @@schema("agent_runtime")
+}
+
+model GatewayZoneBinding {
+  id         String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  gatewayId  String   @map("gateway_id") @db.Uuid
+  zoneId     String   @map("zone_id") @db.Uuid
+  bridgeName String?  @map("bridge_name") @db.VarChar(64)
+  vlanId     Int?     @map("vlan_id")
+  subnetCidr String?  @map("subnet_cidr") @db.Inet
+  poolRange  String?  @map("pool_range") @db.VarChar(100)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  gateway Gateway @relation(fields: [tenantId, gatewayId], references: [tenantId, id], onDelete: Cascade)
+  zone    Zone    @relation(fields: [tenantId, zoneId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, gatewayId, zoneId])
+  @@map("gateway_zone_bindings")
+  @@schema("app")
+}
+
+model GatewaySecretVersion {
+  id         String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  gatewayId  String    @map("gateway_id") @db.Uuid
+  purpose    String    @db.VarChar(40)
+  ciphertext Bytes
+  keyVersion String    @map("key_version") @db.VarChar(80)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  retiredAt  DateTime? @map("retired_at") @db.Timestamptz(6)
+
+  gateway Gateway @relation(fields: [tenantId, gatewayId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@index([tenantId, gatewayId, purpose, retiredAt])
+  @@map("gateway_secret_versions")
+  @@schema("app")
+}
+
+model GatewayConfigRevision {
+  id           String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  gatewayId    String   @map("gateway_id") @db.Uuid
+  version      Int
+  mode         String   @db.VarChar(32)
+  desiredState Json     @map("desired_state") @db.JsonB
+  snapshotHash String   @map("snapshot_hash") @db.Char(64)
+  createdBy    String   @map("created_by") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  gateway     Gateway             @relation(fields: [tenantId, gatewayId], references: [tenantId, id], onDelete: Restrict)
+  deployments GatewayDeployment[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, gatewayId, version])
+  @@map("gateway_config_revisions")
+  @@schema("app")
+}
+
+model GatewayDeployment {
+  id             String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  revisionId     String    @map("revision_id") @db.Uuid
+  state          String    @default("pending") @db.VarChar(32)
+  idempotencyKey String    @map("idempotency_key") @db.VarChar(120)
+  preflight      Json?     @db.JsonB
+  diff           Json?     @db.JsonB
+  evidenceHash   String?   @map("evidence_hash") @db.Char(64)
+  startedAt      DateTime? @map("started_at") @db.Timestamptz(6)
+  finishedAt     DateTime? @map("finished_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  revision GatewayConfigRevision @relation(fields: [tenantId, revisionId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, state, createdAt])
+  @@map("gateway_deployments")
+  @@schema("app")
+}
+
+model AccessPolicy {
+  id         String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  name       String    @db.VarChar(160)
+  status     String    @default("active") @db.VarChar(24)
+  archivedAt DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant   Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  versions AccessPolicyVersion[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+  @@map("access_policies")
+  @@schema("app")
+}
+
+model AccessPolicyVersion {
+  id                    String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId              String    @map("tenant_id") @db.Uuid
+  policyId              String    @map("policy_id") @db.Uuid
+  version               Int
+  status                String    @default("draft") @db.VarChar(24)
+  validFrom             DateTime? @map("valid_from") @db.Timestamptz(6)
+  validUntil            DateTime? @map("valid_until") @db.Timestamptz(6)
+  totalDurationSeconds  Int?      @map("total_duration_seconds")
+  sessionTimeoutSeconds Int?      @map("session_timeout_seconds")
+  idleTimeoutSeconds    Int?      @map("idle_timeout_seconds")
+  downloadKbps          Int?      @map("download_kbps")
+  uploadKbps            Int?      @map("upload_kbps")
+  quotaBytes            BigInt?   @map("quota_bytes")
+  maxConcurrentDevices  Int       @default(1) @map("max_concurrent_devices")
+  snapshot              Json      @default("{}") @db.JsonB
+  publishedAt           DateTime? @map("published_at") @db.Timestamptz(6)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  policy            AccessPolicy          @relation(fields: [tenantId, policyId], references: [tenantId, id], onDelete: Restrict)
+  assignments       PolicyAssignment[]
+  loginMethods      LoginMethod[]
+  authorizations    AccessAuthorization[]
+  voucherBatches    VoucherBatch[]
+  authorizedDevices AuthorizedDevice[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, policyId, version])
+  @@index([tenantId, policyId, status])
+  @@map("access_policy_versions")
+  @@schema("app")
+}
+
+model PolicyAssignment {
+  id              String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  policyVersionId String    @map("policy_version_id") @db.Uuid
+  scopeType       String    @map("scope_type") @db.VarChar(24)
+  organizationId  String?   @map("organization_id") @db.Uuid
+  siteGroupId     String?   @map("site_group_id") @db.Uuid
+  siteId          String?   @map("site_id") @db.Uuid
+  zoneId          String?   @map("zone_id") @db.Uuid
+  priority        Int       @default(0)
+  isDefault       Boolean   @default(false) @map("is_default")
+  validFrom       DateTime  @default(now()) @map("valid_from") @db.Timestamptz(6)
+  validUntil      DateTime? @map("valid_until") @db.Timestamptz(6)
+  archivedAt      DateTime? @map("archived_at") @db.Timestamptz(6)
+
+  policyVersion AccessPolicyVersion @relation(fields: [tenantId, policyVersionId], references: [tenantId, id], onDelete: Restrict)
+  organization  Organization?       @relation(fields: [tenantId, organizationId], references: [tenantId, id], onDelete: Restrict)
+  siteGroup     SiteGroup?          @relation(fields: [tenantId, siteGroupId], references: [tenantId, id], onDelete: Restrict)
+  site          Site?               @relation(fields: [tenantId, siteId], references: [tenantId, id], onDelete: Restrict)
+  zone          Zone?               @relation(fields: [tenantId, zoneId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@index([tenantId, scopeType, priority])
+  @@map("policy_assignments")
+  @@schema("app")
+}
+
+model LoginMethod {
+  id              String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  siteId          String    @map("site_id") @db.Uuid
+  policyVersionId String    @map("policy_version_id") @db.Uuid
+  kind            String    @db.VarChar(32)
+  label           String    @db.VarChar(120)
+  displayOrder    Int       @default(0) @map("display_order")
+  enabled         Boolean   @default(true)
+  availableFrom   DateTime? @map("available_from") @db.Timestamptz(6)
+  availableUntil  DateTime? @map("available_until") @db.Timestamptz(6)
+  config          Json      @default("{}") @db.JsonB
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  site          Site                @relation(fields: [tenantId, siteId], references: [tenantId, id], onDelete: Restrict)
+  policyVersion AccessPolicyVersion @relation(fields: [tenantId, policyVersionId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, siteId, kind])
+  @@map("login_methods")
+  @@schema("app")
+}
+
+model Portal {
+  id         String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  name       String    @db.VarChar(160)
+  kind       String    @default("wifi") @db.VarChar(32)
+  archivedAt DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  versions PortalVersion[]
+
+  @@unique([tenantId, id])
+  @@map("portals")
+  @@schema("app")
+}
+
+model PortalVersion {
+  id             String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  portalId       String    @map("portal_id") @db.Uuid
+  version        Int
+  status         String    @default("draft") @db.VarChar(24)
+  fallbackLocale String    @default("es") @map("fallback_locale") @db.VarChar(12)
+  theme          Json      @default("{}") @db.JsonB
+  publishedAt    DateTime? @map("published_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  portal       Portal              @relation(fields: [tenantId, portalId], references: [tenantId, id], onDelete: Restrict)
+  blocks       PortalBlock[]
+  publications PortalPublication[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, portalId, version])
+  @@map("portal_versions")
+  @@schema("app")
+}
+
+model PortalBlock {
+  id              String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  portalVersionId String   @map("portal_version_id") @db.Uuid
+  kind            String   @db.VarChar(32)
+  displayOrder    Int      @map("display_order")
+  props           Json     @default("{}") @db.JsonB
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  portalVersion PortalVersion @relation(fields: [tenantId, portalVersionId], references: [tenantId, id], onDelete: Cascade)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, portalVersionId, displayOrder])
+  @@map("portal_blocks")
+  @@schema("app")
+}
+
+model PortalPublication {
+  id              String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  portalVersionId String    @map("portal_version_id") @db.Uuid
+  siteId          String    @map("site_id") @db.Uuid
+  zoneId          String?   @map("zone_id") @db.Uuid
+  startsAt        DateTime  @map("starts_at") @db.Timestamptz(6)
+  endsAt          DateTime? @map("ends_at") @db.Timestamptz(6)
+  snapshotHash    String    @map("snapshot_hash") @db.Char(64)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  portalVersion PortalVersion @relation(fields: [tenantId, portalVersionId], references: [tenantId, id], onDelete: Restrict)
+  site          Site          @relation(fields: [tenantId, siteId], references: [tenantId, id], onDelete: Restrict)
+  zone          Zone?         @relation(fields: [tenantId, zoneId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@index([tenantId, siteId, zoneId, startsAt])
+  @@map("portal_publications")
+  @@schema("app")
+}
+
+model ProcessingPurpose {
+  id             String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  code           String   @db.VarChar(80)
+  name           String   @db.VarChar(160)
+  lawfulBasis    String   @map("lawful_basis") @db.VarChar(40)
+  retentionClass String   @map("retention_class") @db.VarChar(80)
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  consentEvents ConsentEvent[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, code])
+  @@map("processing_purposes")
+  @@schema("app")
+}
+
+model LegalDocument {
+  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  kind      String   @db.VarChar(40)
+  name      String   @db.VarChar(160)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant   Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  versions LegalVersion[]
+
+  @@unique([tenantId, id])
+  @@map("legal_documents")
+  @@schema("app")
+}
+
+model LegalVersion {
+  id          String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  documentId  String    @map("document_id") @db.Uuid
+  version     Int
+  locale      String    @db.VarChar(12)
+  status      String    @default("draft") @db.VarChar(24)
+  content     String
+  contentHash String    @map("content_hash") @db.Char(64)
+  publishedAt DateTime? @map("published_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  document      LegalDocument     @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Restrict)
+  acceptances   LegalAcceptance[]
+  consentEvents ConsentEvent[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, documentId, version, locale])
+  @@map("legal_versions")
+  @@schema("app")
+}
+
+model IdentitySpace {
+  id            String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  name          String   @db.VarChar(160)
+  controllerRef String   @map("controller_ref") @db.VarChar(160)
+  keyVersion    String   @map("key_version") @db.VarChar(80)
+  mergePolicy   Json     @default("{}") @map("merge_policy") @db.JsonB
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  endUsers    EndUser[]
+  devices     ClientDevice[]
+  identifiers EndUserIdentifier[]
+  dsrRequests DataSubjectRequest[]
+
+  @@unique([tenantId, id])
+  @@map("identity_spaces")
+  @@schema("app")
+}
+
+model EndUser {
+  id              String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  identitySpaceId String    @map("identity_space_id") @db.Uuid
+  status          String    @default("active") @db.VarChar(24)
+  retentionAnchor DateTime  @default(now()) @map("retention_anchor") @db.Timestamptz(6)
+  anonymizedAt    DateTime? @map("anonymized_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  identitySpace    IdentitySpace         @relation(fields: [tenantId, identitySpaceId], references: [tenantId, id], onDelete: Restrict)
+  identifiers      EndUserIdentifier[]
+  deviceLinks      EndUserDeviceLink[]
+  authorizations   AccessAuthorization[]
+  legalAcceptances LegalAcceptance[]
+  consentEvents    ConsentEvent[]
+  dsrRequests      DataSubjectRequest[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, identitySpaceId, status])
+  @@map("end_users")
+  @@schema("app")
+}
+
+model EndUserIdentifier {
+  id              String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  identitySpaceId String    @map("identity_space_id") @db.Uuid
+  endUserId       String    @map("end_user_id") @db.Uuid
+  kind            String    @db.VarChar(24)
+  ciphertext      Bytes
+  valueHmac       Bytes     @map("value_hmac")
+  keyVersion      String    @map("key_version") @db.VarChar(80)
+  verifiedAt      DateTime? @map("verified_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  identitySpace IdentitySpace @relation(fields: [tenantId, identitySpaceId], references: [tenantId, id], onDelete: Restrict)
+  endUser       EndUser       @relation(fields: [tenantId, endUserId], references: [tenantId, id], onDelete: Cascade)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, identitySpaceId, kind, valueHmac])
+  @@index([tenantId, endUserId])
+  @@map("end_user_identifiers")
+  @@schema("app")
+}
+
+model ClientDevice {
+  id              String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  identitySpaceId String    @map("identity_space_id") @db.Uuid
+  macCiphertext   Bytes     @map("mac_ciphertext")
+  macHmac         Bytes     @map("mac_hmac")
+  keyVersion      String    @map("key_version") @db.VarChar(80)
+  privateMac      Boolean   @default(false) @map("private_mac")
+  firstSeenAt     DateTime  @default(now()) @map("first_seen_at") @db.Timestamptz(6)
+  lastSeenAt      DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  archivedAt      DateTime? @map("archived_at") @db.Timestamptz(6)
+
+  identitySpace        IdentitySpace         @relation(fields: [tenantId, identitySpaceId], references: [tenantId, id], onDelete: Restrict)
+  userLinks            EndUserDeviceLink[]
+  captiveAttempts      CaptiveAttempt[]
+  authorizations       AccessAuthorization[]
+  authorizedDeviceRows AuthorizedDevice[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, identitySpaceId, macHmac])
+  @@index([tenantId, lastSeenAt])
+  @@map("client_devices")
+  @@schema("app")
+}
+
+model EndUserDeviceLink {
+  id        String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  endUserId String    @map("end_user_id") @db.Uuid
+  deviceId  String    @map("device_id") @db.Uuid
+  source    String    @db.VarChar(32)
+  startsAt  DateTime  @default(now()) @map("starts_at") @db.Timestamptz(6)
+  endsAt    DateTime? @map("ends_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  endUser EndUser      @relation(fields: [tenantId, endUserId], references: [tenantId, id], onDelete: Restrict)
+  device  ClientDevice @relation(fields: [tenantId, deviceId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@index([tenantId, endUserId, endsAt])
+  @@index([tenantId, deviceId, endsAt])
+  @@map("end_user_device_links")
+  @@schema("app")
+}
+
+model CaptiveAttempt {
+  id             String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  gatewayId      String    @map("gateway_id") @db.Uuid
+  deviceId       String?   @map("device_id") @db.Uuid
+  stateHash      Bytes     @unique @map("state_hash")
+  nonceHash      Bytes     @unique @map("nonce_hash")
+  claimedMacHmac Bytes?    @map("claimed_mac_hmac")
+  claimedIpHmac  Bytes?    @map("claimed_ip_hmac")
+  returnIntent   Json      @map("return_intent") @db.JsonB
+  status         String    @default("pending") @db.VarChar(24)
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(6)
+  consumedAt     DateTime? @map("consumed_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  gateway       Gateway              @relation(fields: [tenantId, gatewayId], references: [tenantId, id], onDelete: Restrict)
+  device        ClientDevice?        @relation(fields: [tenantId, deviceId], references: [tenantId, id], onDelete: Restrict)
+  authorization AccessAuthorization?
+  redemptions   VoucherRedemption[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, gatewayId, status, expiresAt])
+  @@map("captive_attempts")
+  @@schema("app")
+}
+
+model AccessAuthorization {
+  id                  String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId            String    @map("tenant_id") @db.Uuid
+  attemptId           String    @map("attempt_id") @db.Uuid
+  gatewayId           String    @map("gateway_id") @db.Uuid
+  policyVersionId     String    @map("policy_version_id") @db.Uuid
+  endUserId           String?   @map("end_user_id") @db.Uuid
+  deviceId            String?   @map("device_id") @db.Uuid
+  method              String    @db.VarChar(32)
+  status              String    @default("issued") @db.VarChar(24)
+  effectiveAttributes Json      @map("effective_attributes") @db.JsonB
+  startsAt            DateTime  @map("starts_at") @db.Timestamptz(6)
+  expiresAt           DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt           DateTime? @map("revoked_at") @db.Timestamptz(6)
+  evidenceHash        String    @map("evidence_hash") @db.Char(64)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  attempt           CaptiveAttempt           @relation(fields: [tenantId, attemptId], references: [tenantId, id], onDelete: Restrict)
+  gateway           Gateway                  @relation(fields: [tenantId, gatewayId], references: [tenantId, id], onDelete: Restrict)
+  policyVersion     AccessPolicyVersion      @relation(fields: [tenantId, policyVersionId], references: [tenantId, id], onDelete: Restrict)
+  endUser           EndUser?                 @relation(fields: [tenantId, endUserId], references: [tenantId, id], onDelete: Restrict)
+  device            ClientDevice?            @relation(fields: [tenantId, deviceId], references: [tenantId, id], onDelete: Restrict)
+  radiusCredential  RadiusRuntimeCredential?
+  radiusSessions    RadiusSession[]
+  accountingInbox   RadiusAccountingInbox[]
+  postAuthInbox     RadiusPostAuthInbox[]
+  legalAcceptances  LegalAcceptance[]
+  voucherRedemption VoucherRedemption?
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, attemptId])
+  @@index([tenantId, gatewayId, status, expiresAt])
+  @@map("access_authorizations")
+  @@schema("app")
+}
+
+model LegalAcceptance {
+  id              String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  endUserId       String?  @map("end_user_id") @db.Uuid
+  authorizationId String   @map("authorization_id") @db.Uuid
+  legalVersionId  String   @map("legal_version_id") @db.Uuid
+  locale          String   @db.VarChar(12)
+  evidence        Json     @db.JsonB
+  occurredAt      DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+
+  endUser       EndUser?            @relation(fields: [tenantId, endUserId], references: [tenantId, id], onDelete: Restrict)
+  authorization AccessAuthorization @relation(fields: [tenantId, authorizationId], references: [tenantId, id], onDelete: Restrict)
+  legalVersion  LegalVersion        @relation(fields: [tenantId, legalVersionId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@index([tenantId, authorizationId, occurredAt])
+  @@map("legal_acceptances")
+  @@schema("app")
+}
+
+model ConsentEvent {
+  id             String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  endUserId      String   @map("end_user_id") @db.Uuid
+  purposeId      String   @map("purpose_id") @db.Uuid
+  legalVersionId String?  @map("legal_version_id") @db.Uuid
+  decision       String   @db.VarChar(24)
+  evidence       Json     @db.JsonB
+  occurredAt     DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+
+  endUser      EndUser           @relation(fields: [tenantId, endUserId], references: [tenantId, id], onDelete: Restrict)
+  purpose      ProcessingPurpose @relation(fields: [tenantId, purposeId], references: [tenantId, id], onDelete: Restrict)
+  legalVersion LegalVersion?     @relation(fields: [tenantId, legalVersionId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@index([tenantId, endUserId, purposeId, occurredAt])
+  @@map("consent_events")
+  @@schema("app")
+}
+
+model DataSubjectRequest {
+  id              String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  identitySpaceId String    @map("identity_space_id") @db.Uuid
+  endUserId       String?   @map("end_user_id") @db.Uuid
+  kind            String    @db.VarChar(24)
+  state           String    @default("received") @db.VarChar(24)
+  dueAt           DateTime  @map("due_at") @db.Timestamptz(6)
+  approvedBy      String?   @map("approved_by") @db.Uuid
+  executedAt      DateTime? @map("executed_at") @db.Timestamptz(6)
+  evidence        Json      @default("{}") @db.JsonB
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  identitySpace IdentitySpace @relation(fields: [tenantId, identitySpaceId], references: [tenantId, id], onDelete: Restrict)
+  endUser       EndUser?      @relation(fields: [tenantId, endUserId], references: [tenantId, id], onDelete: Restrict)
+  exports       Export[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, state, dueAt])
+  @@map("data_subject_requests")
+  @@schema("app")
+}
+
+model VoucherBatch {
+  id                String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId          String   @map("tenant_id") @db.Uuid
+  siteId            String   @map("site_id") @db.Uuid
+  policyVersionId   String   @map("policy_version_id") @db.Uuid
+  name              String   @db.VarChar(160)
+  quantity          Int
+  startsAt          DateTime @map("starts_at") @db.Timestamptz(6)
+  expiresAt         DateTime @map("expires_at") @db.Timestamptz(6)
+  defaultMaxUses    Int      @default(1) @map("default_max_uses")
+  defaultMaxDevices Int      @default(1) @map("default_max_devices")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  site          Site                @relation(fields: [tenantId, siteId], references: [tenantId, id], onDelete: Restrict)
+  policyVersion AccessPolicyVersion @relation(fields: [tenantId, policyVersionId], references: [tenantId, id], onDelete: Restrict)
+  vouchers      Voucher[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, siteId, expiresAt])
+  @@map("voucher_batches")
+  @@schema("app")
+}
+
+model Voucher {
+  id          String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  batchId     String    @map("batch_id") @db.Uuid
+  codeHmac    Bytes     @map("code_hmac")
+  displayHint String?   @map("display_hint") @db.VarChar(16)
+  state       String    @default("available") @db.VarChar(24)
+  maxUses     Int       @default(1) @map("max_uses")
+  usedCount   Int       @default(0) @map("used_count")
+  maxDevices  Int       @default(1) @map("max_devices")
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt   DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  batch       VoucherBatch        @relation(fields: [tenantId, batchId], references: [tenantId, id], onDelete: Restrict)
+  redemptions VoucherRedemption[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, codeHmac])
+  @@index([tenantId, batchId, state, expiresAt])
+  @@map("vouchers")
+  @@schema("app")
+}
+
+model VoucherRedemption {
+  id              String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  voucherId       String   @map("voucher_id") @db.Uuid
+  attemptId       String   @map("attempt_id") @db.Uuid
+  authorizationId String?  @map("authorization_id") @db.Uuid
+  outcome         String   @db.VarChar(24)
+  redeemedAt      DateTime @default(now()) @map("redeemed_at") @db.Timestamptz(6)
+
+  voucher       Voucher              @relation(fields: [tenantId, voucherId], references: [tenantId, id], onDelete: Restrict)
+  attempt       CaptiveAttempt       @relation(fields: [tenantId, attemptId], references: [tenantId, id], onDelete: Restrict)
+  authorization AccessAuthorization? @relation(fields: [tenantId, authorizationId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, authorizationId])
+  @@index([tenantId, voucherId, redeemedAt])
+  @@map("voucher_redemptions")
+  @@schema("app")
+}
+
+model AuthorizedDevice {
+  id              String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  siteId          String    @map("site_id") @db.Uuid
+  deviceId        String    @map("device_id") @db.Uuid
+  policyVersionId String    @map("policy_version_id") @db.Uuid
+  reason          String    @db.VarChar(300)
+  startsAt        DateTime  @default(now()) @map("starts_at") @db.Timestamptz(6)
+  expiresAt       DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt       DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  site          Site                @relation(fields: [tenantId, siteId], references: [tenantId, id], onDelete: Restrict)
+  device        ClientDevice        @relation(fields: [tenantId, deviceId], references: [tenantId, id], onDelete: Restrict)
+  policyVersion AccessPolicyVersion @relation(fields: [tenantId, policyVersionId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@index([tenantId, siteId, deviceId, expiresAt])
+  @@map("authorized_devices")
+  @@schema("app")
+}
+
+model BlockedEntity {
+  id          String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  scopeType   String    @map("scope_type") @db.VarChar(24)
+  scopeId     String?   @map("scope_id") @db.Uuid
+  subjectType String    @map("subject_type") @db.VarChar(24)
+  subjectHmac Bytes     @map("subject_hmac")
+  reason      String    @db.VarChar(300)
+  startsAt    DateTime  @default(now()) @map("starts_at") @db.Timestamptz(6)
+  expiresAt   DateTime? @map("expires_at") @db.Timestamptz(6)
+  revokedAt   DateTime? @map("revoked_at") @db.Timestamptz(6)
+  evidence    Json      @default("{}") @db.JsonB
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@index([tenantId, scopeType, scopeId, subjectType, subjectHmac])
+  @@map("blocked_entities")
+  @@schema("app")
+}
+
+model RadiusRuntimeCredential {
+  id                String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  runtimeId         BigInt    @unique @default(autoincrement()) @map("runtime_id")
+  tenantId          String    @map("tenant_id") @db.Uuid
+  authorizationId   String    @map("authorization_id") @db.Uuid
+  gatewayId         String    @map("gateway_id") @db.Uuid
+  username          String    @unique @db.VarChar(253)
+  nasIdentifier     String    @map("nas_identifier") @db.VarChar(253)
+  callingStationId  String?   @map("calling_station_id") @db.VarChar(12)
+  verifierAttribute String    @map("verifier_attribute") @db.VarChar(32)
+  verifierValue     String    @map("verifier_value") @db.Text
+  notBefore         DateTime  @default(now()) @map("not_before") @db.Timestamptz(6)
+  expiresAt         DateTime  @map("expires_at") @db.Timestamptz(6)
+  enabled           Boolean   @default(true)
+  maxUses           Int       @default(1) @map("max_uses")
+  usedCount         Int       @default(0) @map("used_count")
+  revokedAt         DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  authorization   AccessAuthorization    @relation(fields: [tenantId, authorizationId], references: [tenantId, id], onDelete: Restrict)
+  gateway         Gateway                @relation(fields: [tenantId, gatewayId], references: [tenantId, id], onDelete: Restrict)
+  replyAttributes RadiusReplyAttribute[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, authorizationId])
+  @@index([username, nasIdentifier, enabled, expiresAt])
+  @@index([tenantId, gatewayId, expiresAt])
+  @@map("credentials")
+  @@schema("radius_runtime")
+}
+
+model RadiusReplyAttribute {
+  id           String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  runtimeId    BigInt @unique @default(autoincrement()) @map("runtime_id")
+  tenantId     String @map("tenant_id") @db.Uuid
+  credentialId String @map("credential_id") @db.Uuid
+  attribute    String @db.VarChar(128)
+  operator     String @default(":=") @map("op") @db.VarChar(4)
+  value        String @db.Text
+  priority     Int    @default(100) @db.SmallInt
+
+  credential RadiusRuntimeCredential @relation(fields: [tenantId, credentialId], references: [tenantId, id], onDelete: Cascade)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, credentialId, attribute])
+  @@map("reply_attributes")
+  @@schema("radius_runtime")
+}
+
+model RadiusNasRegistry {
+  id            String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  gatewayId     String   @map("gateway_id") @db.Uuid
+  nasIdentifier String   @unique @map("nas_identifier") @db.VarChar(128)
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  gateway Gateway @relation(fields: [tenantId, gatewayId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, gatewayId])
+  @@map("nas_registry")
+  @@schema("radius_runtime")
+}
+
+model RadiusSession {
+  id              String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  gatewayId       String    @map("gateway_id") @db.Uuid
+  authorizationId String?   @map("authorization_id") @db.Uuid
+  acctSessionId   String    @map("acct_session_id") @db.VarChar(128)
+  classValue      String?   @map("class_value") @db.VarChar(253)
+  state           String    @default("active") @db.VarChar(24)
+  startedAt       DateTime  @map("started_at") @db.Timestamptz(6)
+  lastInterimAt   DateTime? @map("last_interim_at") @db.Timestamptz(6)
+  stoppedAt       DateTime? @map("stopped_at") @db.Timestamptz(6)
+  inputOctets     Decimal   @default(0) @map("input_octets") @db.Decimal(20, 0)
+  outputOctets    Decimal   @default(0) @map("output_octets") @db.Decimal(20, 0)
+  terminateCause  String?   @map("terminate_cause") @db.VarChar(80)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  gateway          Gateway                 @relation(fields: [tenantId, gatewayId], references: [tenantId, id], onDelete: Restrict)
+  authorization    AccessAuthorization?    @relation(fields: [tenantId, authorizationId], references: [tenantId, id], onDelete: Restrict)
+  accountingEvents RadiusAccountingInbox[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, gatewayId, acctSessionId, startedAt])
+  @@map("radius_sessions")
+  @@schema("app")
+}
+
+model RadiusAccountingInbox {
+  id                 String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId           String    @map("tenant_id") @db.Uuid
+  gatewayId          String    @map("gateway_id") @db.Uuid
+  authorizationId    String?   @map("authorization_id") @db.Uuid
+  sessionId          String?   @map("session_id") @db.Uuid
+  username           String    @db.VarChar(253)
+  nasIdentifier      String    @map("nas_identifier") @db.VarChar(253)
+  packetSourceIp     String    @map("packet_source_ip") @db.Inet
+  nasIpAddress       String?   @map("nas_ip_address") @db.Inet
+  acctSessionId      String    @map("acct_session_id") @db.VarChar(253)
+  statusType         String    @map("status_type") @db.VarChar(24)
+  receivedAt         DateTime  @default(now()) @map("received_at") @db.Timestamptz(6)
+  nasEventAt         DateTime? @map("nas_event_at") @db.Timestamptz(6)
+  sessionTimeSeconds BigInt?   @map("session_time_seconds")
+  nasInputOctets     Decimal   @default(0) @map("nas_input_octets") @db.Decimal(20, 0)
+  nasOutputOctets    Decimal   @default(0) @map("nas_output_octets") @db.Decimal(20, 0)
+  acctDelaySeconds   Int       @default(0) @map("acct_delay_seconds")
+  callingStationId   String?   @map("calling_station_id") @db.VarChar(253)
+  framedIpAddress    String?   @map("framed_ip_address") @db.Inet
+  classValue         String?   @map("class_value") @db.VarChar(253)
+  terminateCause     String?   @map("terminate_cause") @db.VarChar(80)
+  redactedPayload    Json      @default("{}") @map("redacted_payload") @db.JsonB
+  eventFingerprint   String    @map("event_fingerprint") @db.Char(64)
+  claimToken         String?   @unique @map("claim_token") @db.Uuid
+  claimedBy          String?   @map("claimed_by") @db.Uuid
+  claimedAt          DateTime? @map("claimed_at") @db.Timestamptz(6)
+  leaseExpiresAt     DateTime? @map("lease_expires_at") @db.Timestamptz(6)
+  processingAttempts Int       @default(0) @map("processing_attempts")
+  availableAt        DateTime  @default(now()) @map("available_at") @db.Timestamptz(6)
+  processedAt        DateTime? @map("processed_at") @db.Timestamptz(6)
+  processingError    String?   @map("processing_error") @db.Text
+
+  gateway       Gateway              @relation(fields: [tenantId, gatewayId], references: [tenantId, id], onDelete: Restrict)
+  authorization AccessAuthorization? @relation(fields: [tenantId, authorizationId], references: [tenantId, id], onDelete: Restrict)
+  session       RadiusSession?       @relation(fields: [tenantId, sessionId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, eventFingerprint])
+  @@index([tenantId, sessionId, receivedAt])
+  @@index([tenantId, gatewayId, acctSessionId, receivedAt])
+  @@index([tenantId, processedAt, receivedAt])
+  @@index([processedAt, leaseExpiresAt, availableAt, receivedAt])
+  @@index([receivedAt], type: Brin)
+  @@map("accounting_inbox")
+  @@schema("radius_runtime")
+}
+
+model RadiusPostAuthInbox {
+  id               String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  gatewayId        String   @map("gateway_id") @db.Uuid
+  authorizationId  String?  @map("authorization_id") @db.Uuid
+  username         String   @db.VarChar(253)
+  nasIdentifier    String   @map("nas_identifier") @db.VarChar(253)
+  packetSourceIp   String   @map("packet_source_ip") @db.Inet
+  callingStationId String?  @map("calling_station_id") @db.VarChar(253)
+  replyPacketType  String   @map("reply_packet_type") @db.VarChar(32)
+  classValue       String?  @map("class_value") @db.VarChar(253)
+  receivedAt       DateTime @default(now()) @map("received_at") @db.Timestamptz(6)
+
+  gateway       Gateway              @relation(fields: [tenantId, gatewayId], references: [tenantId, id], onDelete: Restrict)
+  authorization AccessAuthorization? @relation(fields: [tenantId, authorizationId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@index([tenantId, receivedAt, id])
+  @@map("post_auth_inbox")
+  @@schema("radius_runtime")
+}
+
+model IdempotencyKey {
+  id           String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  actorId      String?   @map("actor_id") @db.Uuid
+  operation    String    @db.VarChar(100)
+  key          String    @db.VarChar(160)
+  requestHash  String    @map("request_hash") @db.Char(64)
+  responseCode Int?      @map("response_code")
+  responseBody Json?     @map("response_body") @db.JsonB
+  state        String    @default("started") @db.VarChar(24)
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt  DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, operation, key])
+  @@index([tenantId, expiresAt])
+  @@map("idempotency_keys")
+  @@schema("app")
+}
+
+model OutboxEvent {
+  id             String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  aggregateType  String    @map("aggregate_type") @db.VarChar(80)
+  aggregateId    String    @map("aggregate_id") @db.Uuid
+  eventType      String    @map("event_type") @db.VarChar(120)
+  eventVersion   Int       @default(1) @map("event_version")
+  payload        Json      @db.JsonB
+  occurredAt     DateTime  @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  availableAt    DateTime  @default(now()) @map("available_at") @db.Timestamptz(6)
+  publishedAt    DateTime? @map("published_at") @db.Timestamptz(6)
+  attempts       Int       @default(0)
+  lastError      String?   @map("last_error") @db.Text
+  claimToken     String?   @unique @map("claim_token") @db.Uuid
+  claimedBy      String?   @map("claimed_by") @db.Uuid
+  claimedAt      DateTime? @map("claimed_at") @db.Timestamptz(6)
+  leaseExpiresAt DateTime? @map("lease_expires_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@index([publishedAt, availableAt])
+  @@index([publishedAt, leaseExpiresAt, availableAt])
+  @@index([tenantId, aggregateType, aggregateId, occurredAt])
+  @@map("outbox_events")
+  @@schema("app")
+}
+
+model Export {
+  id           String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  dsrId        String?   @map("dsr_id") @db.Uuid
+  requestedBy  String    @map("requested_by") @db.Uuid
+  approvedBy   String?   @map("approved_by") @db.Uuid
+  reason       String    @db.VarChar(300)
+  scope        Json      @db.JsonB
+  containsPii  Boolean   @default(false) @map("contains_pii")
+  objectKey    String?   @map("object_key") @db.VarChar(600)
+  objectHash   String?   @map("object_hash") @db.Char(64)
+  state        String    @default("requested") @db.VarChar(24)
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(6)
+  downloadedAt DateTime? @map("downloaded_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  dsr    DataSubjectRequest? @relation(fields: [tenantId, dsrId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@index([tenantId, state, expiresAt])
+  @@map("exports")
+  @@schema("app")
+}
+
+model AuditLog {
+  id             String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  actorType      String   @map("actor_type") @db.VarChar(24)
+  actorId        String?  @map("actor_id") @db.Uuid
+  action         String   @db.VarChar(120)
+  resourceType   String   @map("resource_type") @db.VarChar(80)
+  resourceId     String?  @map("resource_id") @db.Uuid
+  scope          Json     @default("{}") @db.JsonB
+  beforeRedacted Json?    @map("before_redacted") @db.JsonB
+  afterRedacted  Json?    @map("after_redacted") @db.JsonB
+  sourceIpHmac   Bytes?   @map("source_ip_hmac")
+  correlationId  String   @map("correlation_id") @db.Uuid
+  reason         String?  @db.VarChar(300)
+  occurredAt     DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  previousHash   String?  @map("previous_hash") @db.Char(64)
+  rowHash        String   @default(dbgenerated("repeat('0'::text, 64)")) @map("row_hash") @db.Char(64)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@index([tenantId, occurredAt])
+  @@index([tenantId, actorId, occurredAt])
+  @@index([tenantId, resourceType, resourceId, occurredAt])
+  @@map("audit_logs")
+  @@schema("audit")
+}

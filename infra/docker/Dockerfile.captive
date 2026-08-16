@@ -1,0 +1,30 @@
+FROM node:24.15.0-bookworm-slim AS dependencies
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+RUN corepack enable && corepack prepare pnpm@11.22.0 --activate
+WORKDIR /workspace
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/captive-portal/package.json apps/captive-portal/package.json
+COPY packages/contracts/package.json packages/contracts/package.json
+RUN pnpm install --frozen-lockfile
+
+FROM dependencies AS builder
+ARG SOURCE_COMMIT=development
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV BUILD_SHA=$SOURCE_COMMIT
+COPY . .
+RUN pnpm --filter @wifi/contracts build && pnpm --filter @wifi/captive-portal build
+
+FROM node:24.15.0-bookworm-slim AS runtime
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3002
+ENV HOSTNAME=0.0.0.0
+WORKDIR /app
+RUN chown node:node /app
+COPY --from=builder --chown=node:node /workspace/apps/captive-portal/.next/standalone ./
+COPY --from=builder --chown=node:node /workspace/apps/captive-portal/.next/static ./apps/captive-portal/.next/static
+USER node
+EXPOSE 3002
+HEALTHCHECK --interval=10s --timeout=3s --start-period=15s --retries=3 CMD ["node", "-e", "fetch('http://127.0.0.1:3002/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+CMD ["node", "apps/captive-portal/server.js"]

@@ -1,0 +1,30 @@
+FROM node:24.15.0-bookworm-slim AS dependencies
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+RUN corepack enable && corepack prepare pnpm@11.22.0 --activate
+WORKDIR /workspace
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/admin-web/package.json apps/admin-web/package.json
+COPY packages/ui/package.json packages/ui/package.json
+RUN pnpm install --frozen-lockfile
+
+FROM dependencies AS builder
+ARG SOURCE_COMMIT=development
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV BUILD_SHA=$SOURCE_COMMIT
+COPY . .
+RUN pnpm --filter @wifi/admin-web build
+
+FROM node:24.15.0-bookworm-slim AS runtime
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+WORKDIR /app
+RUN chown node:node /app
+COPY --from=builder --chown=node:node /workspace/apps/admin-web/.next/standalone ./
+COPY --from=builder --chown=node:node /workspace/apps/admin-web/.next/static ./apps/admin-web/.next/static
+USER node
+EXPOSE 3000
+HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=3 CMD ["node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+CMD ["node", "apps/admin-web/server.js"]

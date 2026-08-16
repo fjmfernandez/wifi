@@ -1,0 +1,12 @@
+detail detail_accounting {
+    filename = ${radacctdir}/entelsat/accounting/detail-%Y%m%d:%H
+    permissions = 0600
+    escape_filenames = yes
+    locking = yes
+    dates_as_integer = yes
+
+    suppress {
+        User-Password
+        CHAP-Password
+    }
+}

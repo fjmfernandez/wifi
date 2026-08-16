@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@theme {
+  --color-hotel-50: #edfbfb;
+  --color-hotel-100: #d1f5f4;
+  --color-hotel-200: #a8eae9;
+  --color-hotel-300: #71d9d9;
+  --color-hotel-400: #3fc1c3;
+  --color-hotel-500: #24a4a8;
+  --color-hotel-600: #1b858a;
+  --color-hotel-700: #1b6b70;
+  --color-hotel-800: #1b565a;
+  --color-hotel-900: #19484b;
+  --font-sans: "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+html {
+  min-height: 100%;
+  background: #0d385f;
+}
+body {
+  margin: 0;
+  min-height: 100dvh;
+  font-family: var(--font-sans);
+  color: #102a43;
+}
+button,
+input {
+  font: inherit;
+}
+button {
+  touch-action: manipulation;
+}
+*:focus-visible {
+  outline: 3px solid #71d9d9;
+  outline-offset: 2px;
+}
+
+.portal-background {
+  background:
+    radial-gradient(circle at 85% 5%, rgba(63, 193, 195, 0.42), transparent 32rem),
+    radial-gradient(circle at 10% 80%, rgba(255, 204, 128, 0.22), transparent 28rem),
+    linear-gradient(150deg, #0a2a4a 0%, #0d4569 45%, #147179 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

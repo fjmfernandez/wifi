@@ -1,0 +1,25 @@
+FROM node:24.15.0-bookworm-slim
+
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends postgresql-client ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && corepack enable \
+    && corepack prepare pnpm@11.22.0 --activate
+
+WORKDIR /workspace
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY packages/database/package.json packages/database/package.json
+RUN pnpm install --frozen-lockfile --filter @wifi-entelsat/database...
+
+ENV NODE_ENV=production
+
+COPY packages/database packages/database
+COPY infra/docker/bin/migrate-database.sh /usr/local/bin/migrate-database
+RUN sed -i 's/\r$//' /usr/local/bin/migrate-database \
+    && chmod 0755 /usr/local/bin/migrate-database
+
+USER node
+ENTRYPOINT ["/usr/local/bin/migrate-database"]

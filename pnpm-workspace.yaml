@@ -1,0 +1,37 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+catalogMode: strict
+
+cleanupUnusedCatalogs: true
+
+engineStrict: true
+
+linkWorkspacePackages: true
+
+overrides:
+  js-yaml: 5.3.0
+  postcss: 8.5.26
+  sharp: 0.35.3
+
+preferWorkspacePackages: true
+
+saveExact: true
+
+strictPeerDependencies: true
+
+# pnpm 11 blocks dependency lifecycle scripts unless the exact package versions are reviewed.
+allowBuilds:
+  "@prisma/engines@7.9.1": true
+  "@scarf/scarf@1.4.0": false
+  "esbuild@0.25.12 || 0.28.2": true
+  "msgpackr-extract@3.0.4": false
+  "prisma@7.9.1": true
+  sharp: false
+  "sharp@0.35.3": true
+
+verifyStoreIntegrity: true
+
+minimumReleaseAgeExclude:
+  - bullmq@6.1.2
