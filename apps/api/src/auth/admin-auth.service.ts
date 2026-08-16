@@ -201,6 +201,10 @@ export class AdminAuthService {
             : {}),
           idleExpiresAt,
           expiresAt,
+          // created_at would otherwise default to the transaction's CURRENT_TIMESTAMP,
+          // which is always later than the `now` used for mfa_verified_at and would
+          // break admin_sessions_time_ck. Every timestamp on the row uses one reading.
+          createdAt: now,
         },
       });
     });

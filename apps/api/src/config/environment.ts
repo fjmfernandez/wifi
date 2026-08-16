@@ -3,6 +3,12 @@ import { z } from "zod";
 const booleanString = z.enum(["true", "false"]).transform((value) => value === "true");
 const base64UrlKey = z.string().min(43).max(44);
 
+// A .env file carries blank placeholders for values that are not configured yet, and
+// dotenv loads those as empty strings rather than omitting the key. Treat "" as unset so
+// an unconfigured optional secret stays optional instead of failing validation.
+const optional = <Schema extends z.ZodType>(schema: Schema) =>
+  z.preprocess((value) => (value === "" ? undefined : value), schema.optional());
+
 const environmentSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "staging", "production"]).default("development"),
   PORT: z.coerce.number().int().min(1).max(65_535).default(3001),
@@ -38,10 +44,10 @@ const environmentSchema = z.object({
   // El plano del agente de sede arranca deshabilitado: sin clave ni modo explícito la API
   // responde 503 en lugar de aceptar agentes sin autenticar.
   SITE_AGENT_MTLS_PROXY_MODE: z.enum(["disabled", "shared-secret"]).default("disabled"),
-  SITE_AGENT_MTLS_PROXY_SHARED_SECRET_BASE64: base64UrlKey.optional(),
+  SITE_AGENT_MTLS_PROXY_SHARED_SECRET_BASE64: optional(base64UrlKey),
   SITE_AGENT_COMMAND_SIGNING_MODE: z.enum(["disabled", "ed25519"]).default("disabled"),
-  SITE_AGENT_COMMAND_SIGNING_PRIVATE_KEY_BASE64: z.string().min(1).optional(),
-  SITE_AGENT_ENROLLMENT_TOKEN_HMAC_KEY_BASE64: base64UrlKey.optional(),
+  SITE_AGENT_COMMAND_SIGNING_PRIVATE_KEY_BASE64: optional(z.string().min(1)),
+  SITE_AGENT_ENROLLMENT_TOKEN_HMAC_KEY_BASE64: optional(base64UrlKey),
   SITE_AGENT_CERTIFICATE_TTL_HOURS: z.coerce.number().int().min(1).max(8_760).default(720),
   SITE_AGENT_MAX_COMMANDS_PER_LEASE: z.coerce.number().int().min(1).max(100).default(10),
   SITE_AGENT_COMMAND_LEASE_SECONDS: z.coerce.number().int().min(5).max(3_600).default(300),

@@ -1,0 +1,22 @@
+# Prettier is configured with endOfLine "lf". Without this file, a Windows checkout with
+# core.autocrlf=true rewrites the working tree to CRLF and `pnpm format:check` fails on a
+# clean clone, even though CI on Linux passes. Normalise to LF in the repository and in
+# every working tree so the quality gate behaves identically on all platforms.
+* text=auto eol=lf
+
+# Shell scripts and container entrypoints must keep LF or they break inside Linux images.
+*.sh text eol=lf
+bin/* text eol=lf
+
+# Lockfiles are generated; keep them out of diff heuristics.
+pnpm-lock.yaml -diff linguist-generated
+
+# Binary assets must never be normalised.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zst binary
+*.p12 binary
