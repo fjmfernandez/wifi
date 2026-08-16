@@ -22,7 +22,25 @@ Carga todas las variables de `.env.example` desde el almacén de secretos de Coo
 3. La tarea `migrate` usa exclusivamente `wifi_bootstrap`, crea o rota los logins runtime y aplica migraciones antes de arrancar la API y el worker. `wifi_migrator` es un rol interno `NOLOGIN`; la API y el worker nunca reciben el secreto bootstrap.
 4. Despliega y exige healthchecks verdes antes de enrutar tráfico.
 5. Verifica `/api/v1/health/live` y `/api/v1/health/ready` a través de ambos orígenes.
+6. Crea la primera cuenta de administración (ver más abajo). Sin ella no hay forma de entrar al panel.
 6. Mantén FreeRADIUS A/B en dominios de fallo distintos, por WireGuard; no abras UDP RADIUS ni gestión MikroTik a Internet.
+
+## Primera cuenta de administración
+
+La pila no crea ningún usuario: `migrate` sólo aplica el esquema y rota los logins de PostgreSQL. La cuenta inicial se crea una vez, como tarea puntual sobre el contenedor `api` ya desplegado. El secreto `wifi_bootstrap` se pasa sólo a este comando; la API nunca lo recibe en su entorno.
+
+```bash
+docker compose -f infra/coolify/compose.production.yml exec \
+  -e BOOTSTRAP_DATABASE_URL="postgresql://wifi_bootstrap:$POSTGRES_BOOTSTRAP_PASSWORD@postgres:5432/wifi_entelsat" \
+  -e BOOTSTRAP_TENANT_SLUG=entelsat \
+  -e BOOTSTRAP_TENANT_NAME="ENTELSAT" \
+  -e BOOTSTRAP_ADMIN_EMAIL=admin@entelsat.com \
+  -e BOOTSTRAP_ADMIN_PASSWORD='<contraseña de 16 caracteres o más>' \
+  -e DATA_ENCRYPTION_KEY_VERSION=env-v1 \
+  api node apps/api/dist/cli/bootstrap-admin.js --show-secrets-once
+```
+
+La URI TOTP y los códigos de recuperación se imprimen una única vez: guárdalos antes de cerrar la consola. El comando es idempotente, así que una segunda ejecución informa de que el bootstrap ya se aplicó y no rota ni vuelve a mostrar secretos. `ADMIN_REQUIRE_MFA` está en `true`, de modo que el login exige el segundo factor desde el primer acceso.
 
 El worker arranca solo la cola duradera `accounting`. Si se configura una cola sin handler de producción, su readiness queda en `503`; no confirma trabajos sin haber realizado el efecto real.
 
