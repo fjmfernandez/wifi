@@ -23,7 +23,7 @@ Carga todas las variables de `.env.example` desde el almacén de secretos de Coo
 4. Despliega y exige healthchecks verdes antes de enrutar tráfico.
 5. Verifica `/api/v1/health/live` y `/api/v1/health/ready` a través de ambos orígenes.
 6. Crea la primera cuenta de administración (ver más abajo). Sin ella no hay forma de entrar al panel.
-6. Mantén FreeRADIUS A/B en dominios de fallo distintos, por WireGuard; no abras UDP RADIUS ni gestión MikroTik a Internet.
+7. Mantén FreeRADIUS A/B en dominios de fallo distintos, por WireGuard; no abras UDP RADIUS ni gestión MikroTik a Internet.
 
 ## Primera cuenta de administración
 
