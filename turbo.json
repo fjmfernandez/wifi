@@ -17,7 +17,7 @@
       "outputs": []
     },
     "typecheck": {
-      "dependsOn": ["^typecheck"],
+      "dependsOn": ["^build"],
       "outputs": []
     },
     "@wifi/ui#build": {
