@@ -15,12 +15,10 @@ RUN pnpm --filter @wifi/contracts build \
     && pnpm --filter @wifi-entelsat/database build \
     && pnpm --filter @wifi/worker build
 # See Dockerfile.api: pnpm's isolated layout keeps each workspace package's dependencies in
-# its own node_modules, so the runtime stage must copy those too, and the directories have
-# to exist even when a package is left with no production dependencies.
-# CI=true lets pnpm purge the dev node_modules non-interactively when switching to a
-# production-only install; without it pnpm aborts with ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY.
-RUN CI=true pnpm install --prod --frozen-lockfile --filter @wifi/worker... \
-    && mkdir -p apps/worker/node_modules \
+# its own node_modules, so the runtime stage must copy those too, and the directories have to
+# exist even when a package has none. The dependencies stage stays the only install; pruning
+# again here does not shrink the image, it only slows the build.
+RUN mkdir -p apps/worker/node_modules \
        packages/contracts/node_modules \
        packages/database/node_modules
 

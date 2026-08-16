@@ -18,15 +18,16 @@ RUN pnpm --filter @wifi/contracts build \
     && pnpm --filter @wifi/radius build \
     && pnpm --filter @wifi-entelsat/database build \
     && pnpm --filter @wifi/api build
-# Drop devDependencies now that the build is done, then guarantee every per-package
-# node_modules path exists: pnpm uses an isolated layout, so each workspace package keeps
-# its own node_modules of symlinks into /workspace/node_modules/.pnpm. Packages that only
-# had devDependencies end up with no node_modules at all, and COPY --from fails on a
-# missing source.
-# CI=true lets pnpm purge the dev node_modules non-interactively when switching to a
-# production-only install; without it pnpm aborts with ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY.
-RUN CI=true pnpm install --prod --frozen-lockfile --filter @wifi/api... \
-    && mkdir -p apps/api/node_modules \
+# pnpm uses an isolated layout: each workspace package keeps its own node_modules of symlinks
+# into /workspace/node_modules/.pnpm, so the runtime stage has to copy those too. Packages with
+# only devDependencies may have no node_modules at all, and COPY --from fails on a missing
+# source, so guarantee the paths exist.
+# A second `pnpm install --prod` here buys nothing: the virtual store is already populated by
+# the dependencies stage, so pruning at this point leaves the image the same size while adding
+# a slow install. The runtime image still carries the whole store (~940 MB, mostly Next, turbo
+# and the Prisma engines pulled in by the lockfile), which is a known size issue rather than a
+# correctness one; slimming it needs a narrower install or `pnpm deploy`, not a prune here.
+RUN mkdir -p apps/api/node_modules \
        packages/contracts/node_modules \
        packages/database/node_modules \
        packages/radius/node_modules \
