@@ -1,7 +1,11 @@
 FROM node:24.15.0-bookworm-slim AS dependencies
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
-RUN corepack enable && corepack prepare pnpm@11.22.0 --activate
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends ca-certificates openssl \
+    && rm -rf /var/lib/apt/lists/* \
+    && corepack enable \
+    && corepack prepare pnpm@11.22.0 --activate
 WORKDIR /workspace
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/worker/package.json apps/worker/package.json
@@ -27,6 +31,9 @@ ENV NODE_ENV=production
 ENV WORKER_HEALTH_HOST=0.0.0.0
 ENV WORKER_HEALTH_PORT=3003
 WORKDIR /workspace
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends ca-certificates openssl \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=builder --chown=node:node /workspace/node_modules ./node_modules
 COPY --from=builder --chown=node:node /workspace/apps/worker/package.json ./apps/worker/package.json
 COPY --from=builder --chown=node:node /workspace/apps/worker/node_modules ./apps/worker/node_modules
@@ -39,5 +46,5 @@ COPY --from=builder --chown=node:node /workspace/packages/database/node_modules 
 COPY --from=builder --chown=node:node /workspace/packages/database/dist ./packages/database/dist
 USER node
 EXPOSE 3003
-HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=3 CMD ["node", "-e", "fetch('http://127.0.0.1:3003/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+HEALTHCHECK --interval=10s --timeout=5s --start-period=60s --retries=12 CMD ["node", "-e", "fetch('http://127.0.0.1:3003/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
 CMD ["node", "apps/worker/dist/main.js"]

@@ -74,6 +74,18 @@ services:
       RADIUS_CREDENTIAL_MODE: ${RADIUS_CREDENTIAL_MODE:-blocked}
     expose:
       - "3001"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3001/api/v1/health/live').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
     depends_on:
       migrate:
         condition: service_completed_successfully
