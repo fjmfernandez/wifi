@@ -22,20 +22,7 @@ RUN pnpm --filter @wifi/contracts build \
     && pnpm --filter @wifi/radius build \
     && pnpm --filter @wifi-entelsat/database build \
     && pnpm --filter @wifi/api build
-# pnpm uses an isolated layout: each workspace package keeps its own node_modules of symlinks
-# into /workspace/node_modules/.pnpm, so the runtime stage has to copy those too. Packages with
-# only devDependencies may have no node_modules at all, and COPY --from fails on a missing
-# source, so guarantee the paths exist.
-# A second `pnpm install --prod` here buys nothing: the virtual store is already populated by
-# the dependencies stage, so pruning at this point leaves the image the same size while adding
-# a slow install. The runtime image still carries the whole store (~940 MB, mostly Next, turbo
-# and the Prisma engines pulled in by the lockfile), which is a known size issue rather than a
-# correctness one; slimming it needs a narrower install or `pnpm deploy`, not a prune here.
-RUN mkdir -p apps/api/node_modules \
-       packages/contracts/node_modules \
-       packages/database/node_modules \
-       packages/radius/node_modules \
-       packages/security/node_modules
+RUN pnpm --filter @wifi/api deploy --prod --legacy /runtime
 
 FROM node:24.15.0-bookworm-slim AS runtime
 ENV NODE_ENV=production
@@ -45,23 +32,8 @@ WORKDIR /workspace
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends ca-certificates openssl \
     && rm -rf /var/lib/apt/lists/*
-COPY --from=builder --chown=node:node /workspace/node_modules ./node_modules
-COPY --from=builder --chown=node:node /workspace/apps/api/package.json ./apps/api/package.json
-COPY --from=builder --chown=node:node /workspace/apps/api/node_modules ./apps/api/node_modules
-COPY --from=builder --chown=node:node /workspace/apps/api/dist ./apps/api/dist
-COPY --from=builder --chown=node:node /workspace/packages/contracts/package.json ./packages/contracts/package.json
-COPY --from=builder --chown=node:node /workspace/packages/contracts/node_modules ./packages/contracts/node_modules
-COPY --from=builder --chown=node:node /workspace/packages/contracts/dist ./packages/contracts/dist
-COPY --from=builder --chown=node:node /workspace/packages/database/package.json ./packages/database/package.json
-COPY --from=builder --chown=node:node /workspace/packages/database/node_modules ./packages/database/node_modules
-COPY --from=builder --chown=node:node /workspace/packages/database/dist ./packages/database/dist
-COPY --from=builder --chown=node:node /workspace/packages/radius/package.json ./packages/radius/package.json
-COPY --from=builder --chown=node:node /workspace/packages/radius/node_modules ./packages/radius/node_modules
-COPY --from=builder --chown=node:node /workspace/packages/radius/dist ./packages/radius/dist
-COPY --from=builder --chown=node:node /workspace/packages/security/package.json ./packages/security/package.json
-COPY --from=builder --chown=node:node /workspace/packages/security/node_modules ./packages/security/node_modules
-COPY --from=builder --chown=node:node /workspace/packages/security/dist ./packages/security/dist
+COPY --from=builder --chown=node:node /runtime ./
 USER node
 EXPOSE 3001
 HEALTHCHECK --interval=10s --timeout=5s --start-period=60s --retries=12 CMD ["node", "-e", "fetch('http://127.0.0.1:3001/api/v1/health/live').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
-CMD ["node", "apps/api/dist/main.js"]
+CMD ["node", "dist/main.js"]
