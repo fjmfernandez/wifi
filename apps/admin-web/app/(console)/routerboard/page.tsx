@@ -81,9 +81,9 @@ function buildRouterScript({
     `/interface sstp-client remove [find name=${routerQuote(sstpName)}]`,
     `/interface sstp-client add name=${routerQuote(sstpName)} connect-to=${routerQuote(
       values.sstpServer,
-    )} user=${routerQuote(values.sstpUser)} password=${routerQuote(
+    )} port=${values.sstpPort || "4443"} user=${routerQuote(values.sstpUser)} password=${routerQuote(
       values.sstpPassword,
-    )} authentication=mschap2 profile=default-encryption add-default-route=no disabled=no`,
+    )} authentication=mschap2 profile=default-encryption add-default-route=no verify-server-certificate=no disabled=no`,
     `/ip route remove [find comment=${routerQuote("ENTELSAT RADIUS via SSTP")}]`,
     `/ip route add dst-address=${radiusServerIp}/32 gateway=${routerQuote(
       sstpName,
@@ -145,6 +145,10 @@ export default function RouterBoardLinkPage() {
       ? buildRouterScript({ gateway: selectedGateway, material, values: formValues })
       : "";
   const loginHtml = material ? buildLoginHtml(material.gatewayLocator) : "";
+  const sstpUsersLine =
+    material && formValues.sstpUser && formValues.sstpPassword
+      ? `${formValues.sstpUser}\t${formValues.sstpPassword}\t${material.tunnelClientIp}`
+      : "";
 
   async function generate(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -234,7 +238,15 @@ export default function RouterBoardLinkPage() {
               <input
                 name="sstpServer"
                 required
+                defaultValue="62.84.190.174"
                 placeholder="Servidor SSTP, ej. vpn.entelsat.com"
+                className={inputClass}
+              />
+              <input
+                name="sstpPort"
+                required
+                defaultValue="4443"
+                placeholder="Puerto SSTP"
                 className={inputClass}
               />
               <input
@@ -291,9 +303,10 @@ export default function RouterBoardLinkPage() {
             <ShieldCheck className="size-4 text-emerald-700" /> Orden de aplicación
           </h2>
           <ol className="mt-3 list-decimal space-y-2 pl-5 text-xs leading-5 text-slate-600">
-            <li>Crea/activa el usuario SSTP en tu servidor VPN.</li>
+            <li>Copia `SSTP_USERS_TSV` en Coolify para crear el usuario VPN.</li>
             <li>Genera el material en esta pantalla.</li>
-            <li>En Coolify, pon `RADIUS_CLIENTS_TSV` con la línea generada y redepliega.</li>
+            <li>En Coolify, pon `RADIUS_CLIENTS_TSV` con la línea generada.</li>
+            <li>Redepliega para que SSTP y RADIUS carguen esos secretos.</li>
             <li>Pega el script en Terminal de MikroTik.</li>
             <li>Sube el `login.html` generado a Files/hotspot/login.html.</li>
           </ol>
@@ -306,6 +319,11 @@ export default function RouterBoardLinkPage() {
 
       {material ? (
         <div className="mt-4 grid gap-4 xl:grid-cols-2">
+          <OutputBlock
+            title="Variable Coolify SSTP_USERS_TSV"
+            value={sstpUsersLine}
+            onCopy={() => void copy(sstpUsersLine, "SSTP_USERS_TSV")}
+          />
           <OutputBlock
             title="Variable Coolify RADIUS_CLIENTS_TSV"
             value={material.radiusClientLine}

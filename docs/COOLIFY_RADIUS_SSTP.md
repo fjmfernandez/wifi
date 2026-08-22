@@ -3,6 +3,7 @@
 ## 1. Variables en Coolify
 
 FreeRADIUS queda añadido al `infra/coolify/compose.production.yml` como servicio `radius`.
+El servidor SSTP queda añadido como servicio `sstp-vpn`.
 
 La app puede arrancar sin RouterBOARD real usando el cliente local por defecto. Para una prueba real, genera la línea desde el panel:
 
@@ -12,12 +13,14 @@ y pega el resultado en la variable de Coolify:
 
 ```env
 RADIUS_CLIENTS_TSV=nombre_rb<TAB>ip_tunel_rb<TAB>secreto_radius
+SSTP_USERS_TSV=usuario_sstp<TAB>clave_sstp<TAB>ip_tunel_rb
 ```
 
 Ejemplo:
 
 ```env
 RADIUS_CLIENTS_TSV=rb-prueba-001	10.255.0.2	xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+SSTP_USERS_TSV=rb-prueba-001	clave-larga-sstp	10.255.0.2
 ```
 
 Si hay varios routers, usa una línea por router:
@@ -25,20 +28,46 @@ Si hay varios routers, usa una línea por router:
 ```env
 RADIUS_CLIENTS_TSV=rb-prueba-001	10.255.0.2	secret1
 rb-hotel-002	10.255.0.3	secret2
+SSTP_USERS_TSV=rb-prueba-001	clave-larga-1	10.255.0.2
+rb-hotel-002	clave-larga-2	10.255.0.3
 ```
 
 Después redepliega en Coolify.
 
-## 2. Puertos
+## 2. Servidor SSTP
 
-El servicio publica:
+El servicio `sstp-vpn` publica TCP `4443` por defecto para no ocupar el `443` que usa Coolify/HTTPS.
+
+Variables principales:
+
+```env
+SSTP_PUBLIC_HOST=62.84.190.174
+SSTP_PORT=4443
+SSTP_LOCAL_IP=10.255.0.1
+SSTP_POOL=10.255.0.2-254
+```
+
+En el VPS debe existir `/dev/ppp`. Si no existe:
+
+```sh
+modprobe ppp_generic
+ls -l /dev/ppp
+```
+
+Abre en firewall solo:
+
+- TCP `4443` desde Internet o desde las IPs de los routers.
+
+## 3. RADIUS
+
+El servicio `radius` queda interno en el compose:
 
 - UDP `1812` para autenticación RADIUS.
 - UDP `1813` para accounting RADIUS.
 
-Para producción, permite esos puertos solo desde la red/túnel SSTP o desde IPs concretas. No los dejes abiertos a Internet sin firewall.
+El RouterBOARD enviará RADIUS a `10.255.0.1` por el túnel SSTP; el contenedor `sstp-vpn` redirige esos paquetes al contenedor `radius`.
 
-## 3. SSTP
+## 4. RouterBOARD por SSTP
 
 El RouterBOARD se conecta como `SSTP Client` hacia tu servidor VPN. El panel genera el script RouterOS con:
 
@@ -49,7 +78,17 @@ El RouterBOARD se conecta como `SSTP Client` hacia tu servidor VPN. El panel gen
 - perfil HotSpot con `use-radius=yes`;
 - walled garden hacia `captive.wifi.entelsat.com`.
 
-## 4. Portal cautivo
+El script usa:
+
+```text
+connect-to=62.84.190.174
+port=4443
+verify-server-certificate=no
+```
+
+Para producción estricta, sustituye el certificado autosignado por un certificado real y activa la verificación en RouterOS.
+
+## 5. Portal cautivo
 
 La pantalla también genera `login.html`. Súbelo al MikroTik en:
 

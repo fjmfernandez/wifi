@@ -138,15 +138,43 @@ services:
       RADIUS_DB_SSLMODE: disable
       RADIUS_ALLOW_INSECURE_DB: lab-only
       RADIUS_CLIENTS_TSV: ${RADIUS_CLIENTS_TSV:-local-disabled	127.0.0.1	LOCAL_ONLY_PLACEHOLDER_SECRET_123456}
-    ports:
-      - "1812:1812/udp"
-      - "1813:1813/udp"
+    expose:
+      - "1812/udp"
+      - "1813/udp"
     volumes:
       - radius_radacct:/var/log/freeradius/radacct
     depends_on:
       migrate:
         condition: service_completed_successfully
       postgres:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+
+  sstp-vpn:
+    build:
+      context: infra/sstp-vpn
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      SSTP_PUBLIC_HOST: ${SSTP_PUBLIC_HOST:-62.84.190.174}
+      SSTP_PORT: ${SSTP_PORT:-4443}
+      SSTP_LOCAL_IP: ${SSTP_LOCAL_IP:-10.255.0.1}
+      SSTP_POOL: ${SSTP_POOL:-10.255.0.2-254}
+      SSTP_DNS1: ${SSTP_DNS1:-1.1.1.1}
+      SSTP_DNS2: ${SSTP_DNS2:-8.8.8.8}
+      SSTP_USERS_TSV: ${SSTP_USERS_TSV:-}
+      SSTP_CERT_PEM_BASE64: ${SSTP_CERT_PEM_BASE64:-}
+      SSTP_KEY_PEM_BASE64: ${SSTP_KEY_PEM_BASE64:-}
+      RADIUS_HOST: radius
+    ports:
+      - "${SSTP_PORT:-4443}:4443/tcp"
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/ppp:/dev/ppp
+    depends_on:
+      radius:
         condition: service_healthy
     security_opt:
       - no-new-privileges:true
