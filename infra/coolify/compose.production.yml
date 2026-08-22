@@ -3,7 +3,7 @@ name: wifi-entelsat
 services:
   admin:
     build:
-      context: ../..
+      context: .
       dockerfile: infra/docker/Dockerfile.admin
       args:
         SOURCE_COMMIT: ${SOURCE_COMMIT:-development}
@@ -25,7 +25,7 @@ services:
 
   captive:
     build:
-      context: ../..
+      context: .
       dockerfile: infra/docker/Dockerfile.captive
       args:
         SOURCE_COMMIT: ${SOURCE_COMMIT:-development}
@@ -47,7 +47,7 @@ services:
 
   api:
     build:
-      context: ../..
+      context: .
       dockerfile: infra/docker/Dockerfile.api
     restart: unless-stopped
     environment:
@@ -87,7 +87,7 @@ services:
 
   worker:
     build:
-      context: ../..
+      context: .
       dockerfile: infra/docker/Dockerfile.worker
     restart: unless-stopped
     environment:
@@ -114,7 +114,7 @@ services:
 
   migrate:
     build:
-      context: ../..
+      context: .
       dockerfile: infra/docker/Dockerfile.migrate
     restart: "no"
     # Coolify-specific: this one-shot container must not determine stack health.

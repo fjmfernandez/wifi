@@ -16,6 +16,8 @@ En Coolify, crea una aplicación desde Git con estos valores exactos:
 
 El repositorio no contiene un `Dockerfile` en la raíz porque la aplicación está formada por siete servicios. Si el log muestra `open Dockerfile: no such file or directory`, el recurso se creó con el Build Pack incorrecto: cámbialo a Docker Compose o crea de nuevo el recurso con los valores anteriores.
 
+El `build.context` de los servicios debe permanecer como `.`. Coolify ejecuta Compose con `--project-directory` apuntando a la raíz importada del repositorio; usar `../..` haría que Docker buscase `/infra/docker/...` fuera del proyecto y fallase con `lstat /infra: no such file or directory`.
+
 Cuando Coolify cargue el Compose, asigna:
 
 - servicio `admin`, puerto interno `3000`: `https://wifi.entelsat.com:3000`;
