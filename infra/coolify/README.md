@@ -4,12 +4,26 @@ Esta plantilla despliega el plano web en una única pila Docker Compose. No publ
 
 ## Dominios
 
-En Coolify, crea una aplicación Docker Compose desde Git y selecciona `infra/coolify/compose.production.yml`. Asigna:
+En Coolify, crea una aplicación desde Git con estos valores exactos:
+
+- **Build Pack**: `Docker Compose` (no `Dockerfile` ni `Nixpacks`);
+- **Branch**: `main`;
+- **Base Directory**: `/`;
+- **Docker Compose Location**: `/infra/coolify/compose.production.yml`;
+- **Raw Compose Deployment**: desactivado;
+- **Connect to Predefined Network**: desactivado.
+- **Include Source Commit in Build**: activado.
+
+El repositorio no contiene un `Dockerfile` en la raíz porque la aplicación está formada por siete servicios. Si el log muestra `open Dockerfile: no such file or directory`, el recurso se creó con el Build Pack incorrecto: cámbialo a Docker Compose o crea de nuevo el recurso con los valores anteriores.
+
+Cuando Coolify cargue el Compose, asigna:
 
 - servicio `admin`, puerto interno `3000`: `https://wifi.entelsat.com:3000`;
 - servicio `captive`, puerto interno `3002`: `https://captive.wifi.entelsat.com:3002`.
 
-El puerto indica a qué puerto interno debe dirigir Coolify; el navegador seguirá usando HTTPS 443. No asignes dominio ni puerto público a `api`, `postgres` o `redis`.
+El puerto indica a qué puerto interno debe dirigir Coolify; el navegador seguirá usando HTTPS 443. No asignes dominio ni puerto público a `api`, `worker`, `migrate`, `postgres` o `redis`.
+
+Coolify crea y conecta automáticamente la red privada de la pila. No añadas redes personalizadas desde la interfaz; los servicios sin dominio ni `ports` publicados permanecen internos.
 
 ## Variables y secretos
 

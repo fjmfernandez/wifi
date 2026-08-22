@@ -22,9 +22,6 @@ services:
     read_only: true
     tmpfs:
       - /tmp:size=64m,noexec,nosuid
-    networks:
-      - frontend
-      - backend
 
   captive:
     build:
@@ -47,9 +44,6 @@ services:
     read_only: true
     tmpfs:
       - /tmp:size=64m,noexec,nosuid
-    networks:
-      - frontend
-      - backend
 
   api:
     build:
@@ -90,8 +84,6 @@ services:
     read_only: true
     tmpfs:
       - /tmp:size=64m,noexec,nosuid
-    networks:
-      - backend
 
   worker:
     build:
@@ -119,14 +111,14 @@ services:
     read_only: true
     tmpfs:
       - /tmp:size=64m,noexec,nosuid
-    networks:
-      - backend
 
   migrate:
     build:
       context: ../..
       dockerfile: infra/docker/Dockerfile.migrate
     restart: "no"
+    # Coolify-specific: this one-shot container must not determine stack health.
+    exclude_from_hc: true
     environment:
       DATABASE_URL: postgresql://wifi_bootstrap:${POSTGRES_BOOTSTRAP_PASSWORD:?POSTGRES_BOOTSTRAP_PASSWORD is required}@postgres:5432/wifi_entelsat
       WIFI_API_PASSWORD: ${POSTGRES_API_PASSWORD:?POSTGRES_API_PASSWORD is required}
@@ -137,8 +129,6 @@ services:
         condition: service_healthy
     security_opt:
       - no-new-privileges:true
-    networks:
-      - backend
 
   postgres:
     image: postgres:18.6-bookworm
@@ -155,8 +145,6 @@ services:
       timeout: 5s
       retries: 12
       start_period: 15s
-    networks:
-      - backend
 
   redis:
     image: redis:8.10.0-alpine
@@ -178,14 +166,7 @@ services:
       retries: 12
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
-    networks:
-      - backend
 
 volumes:
   postgres_data:
   redis_data:
-
-networks:
-  frontend:
-  backend:
-    internal: true
