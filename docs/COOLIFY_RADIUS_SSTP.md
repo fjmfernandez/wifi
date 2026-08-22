@@ -23,6 +23,8 @@ RADIUS_CLIENTS_TSV=rb-prueba-001	10.255.0.2	xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 SSTP_USERS_TSV=rb-prueba-001	clave-larga-sstp	10.255.0.2
 ```
 
+Si Coolify no conserva el tabulador al pegar, puedes escribir `\t` literalmente entre campos. El contenedor lo convertirá a tab real al arrancar.
+
 Si hay varios routers, usa una línea por router:
 
 ```env

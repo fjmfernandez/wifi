@@ -81,7 +81,7 @@ chmod 0600 "$cert_file" "$key_file"
 
 users_source="$runtime_dir/users.tsv"
 if [ -n "${SSTP_USERS_TSV:-}" ]; then
-  printf '%s\n' "$SSTP_USERS_TSV" > "$users_source"
+  printf '%b\n' "$SSTP_USERS_TSV" > "$users_source"
 else
   generated_user="disabled-$(openssl rand -hex 6)"
   generated_password="$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=')"

@@ -41,7 +41,7 @@ install -d -m 0750 "$runtime_dir"
 
 if [ -n "${RADIUS_CLIENTS_TSV:-}" ]; then
   clients_secret="$runtime_dir/clients-secret-env"
-  printf '%s\n' "$RADIUS_CLIENTS_TSV" > "$clients_secret"
+  printf '%b\n' "$RADIUS_CLIENTS_TSV" > "$clients_secret"
   chmod 0600 "$clients_secret"
 fi
 
