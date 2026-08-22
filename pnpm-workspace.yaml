@@ -11,6 +11,7 @@ engineStrict: true
 linkWorkspacePackages: true
 
 overrides:
+  deepmerge-ts: 8.0.2
   js-yaml: 5.3.0
   postcss: 8.5.26
   sharp: 0.35.3
@@ -35,3 +36,4 @@ verifyStoreIntegrity: true
 
 minimumReleaseAgeExclude:
   - bullmq@6.1.2
+  - deepmerge-ts@8.0.2

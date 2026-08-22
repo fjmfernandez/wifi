@@ -13,11 +13,11 @@
       "persistent": true
     },
     "test": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["build", "^build"],
       "outputs": []
     },
     "typecheck": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["build", "^build"],
       "outputs": []
     },
     "@wifi/ui#build": {

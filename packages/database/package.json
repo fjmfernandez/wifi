@@ -23,8 +23,8 @@
     "validate": "prisma validate",
     "migrate:deploy": "prisma migrate deploy",
     "seed": "prisma db seed",
-    "typecheck": "prisma generate && tsc --noEmit",
-    "test": "prisma generate && vitest run",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "test:sql": "vitest run tests/rls-isolation.test.ts"
   },
   "dependencies": {
