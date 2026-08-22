@@ -8,7 +8,6 @@
     "bootstrap:admin": "tsx src/cli/bootstrap-admin.ts",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "dev": "tsx watch src/main.ts",
-    "reset:admin-password": "tsx src/cli/reset-admin-password.ts",
     "start": "node dist/main.js",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"

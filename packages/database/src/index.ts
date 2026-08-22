@@ -14,14 +14,8 @@ export type {
   DatabaseRuntimeRole,
   TenantTransaction,
 } from "./client.js";
-export {
-  bootstrapInitialAdmin,
-  InitialAdminBootstrapConflictError,
-  resetAdminPassword,
-} from "./bootstrap-admin.js";
+export { bootstrapInitialAdmin, InitialAdminBootstrapConflictError } from "./bootstrap-admin.js";
 export type {
-  AdminPasswordResetInput,
-  AdminPasswordResetResult,
   InitialAdminBootstrapInput,
   InitialAdminBootstrapMaterial,
   InitialAdminBootstrapResult,
