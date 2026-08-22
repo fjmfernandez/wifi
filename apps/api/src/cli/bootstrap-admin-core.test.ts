@@ -11,6 +11,7 @@ import {
   createAdminBootstrapMaterial,
   parseAdminBootstrapEnvironment,
 } from "./bootstrap-admin-core.js";
+import { parseResetAdminPasswordEnvironment } from "./reset-admin-password-core.js";
 
 const userId = "0198a000-0000-7000-8000-00000000a001";
 const emailHmacKey = Buffer.alloc(32, 11).toString("base64url");
@@ -95,5 +96,20 @@ describe("initial admin bootstrap material", () => {
     masterKey.fill(0);
     emailKey.fill(0);
     totpKey.fill(0);
+  });
+
+  test("accepts the requested reset password policy", () => {
+    expect(
+      parseResetAdminPasswordEnvironment({
+        BOOTSTRAP_DATABASE_URL:
+          "postgresql://wifi_bootstrap:deployment-secret@postgres:5432/wifi_entelsat",
+        RESET_ADMIN_EMAIL: "entelsat@entelsat.com",
+        RESET_ADMIN_PASSWORD: "Claudia:2012",
+        ADMIN_EMAIL_HMAC_KEY_BASE64: emailHmacKey,
+      }),
+    ).toMatchObject({
+      RESET_ADMIN_EMAIL: "entelsat@entelsat.com",
+      RESET_ADMIN_PASSWORD: "Claudia:2012",
+    });
   });
 });

@@ -58,6 +58,18 @@ docker compose -f infra/coolify/compose.production.yml exec \
 
 La URI TOTP y los códigos de recuperación se imprimen una única vez: guárdalos antes de cerrar la consola. El comando es idempotente, así que una segunda ejecución informa de que el bootstrap ya se aplicó y no rota ni vuelve a mostrar secretos. `ADMIN_REQUIRE_MFA` está en `true`, de modo que el login exige el segundo factor desde el primer acceso.
 
+Si la cuenta ya existe y sólo necesitas forzar su contraseña, ejecuta esta tarea puntual:
+
+```bash
+docker compose -f infra/coolify/compose.production.yml exec \
+  -e BOOTSTRAP_DATABASE_URL="postgresql://wifi_bootstrap:$POSTGRES_BOOTSTRAP_PASSWORD@postgres:5432/wifi_entelsat" \
+  -e RESET_ADMIN_EMAIL=entelsat@entelsat.com \
+  -e RESET_ADMIN_PASSWORD='<nueva contraseña de 12 caracteres o más>' \
+  api node dist/cli/reset-admin-password.js --confirm-reset
+```
+
+El reset no muestra secretos TOTP ni códigos de recuperación; mantiene el MFA existente, desbloquea intentos fallidos y revoca sesiones abiertas para que el siguiente acceso use la nueva contraseña.
+
 El worker arranca solo la cola duradera `accounting`. Si se configura una cola sin handler de producción, su readiness queda en `503`; no confirma trabajos sin haber realizado el efecto real.
 
 No cambies `RADIUS_CREDENTIAL_MODE=blocked` hasta adjuntar la evidencia del laboratorio físico para el modo elegido. El portal seguirá fallando cerrado en vez de guardar un verificador inseguro por accidente.

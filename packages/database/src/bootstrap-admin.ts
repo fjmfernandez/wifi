@@ -6,6 +6,7 @@ const { Client } = pg;
 
 const BOOTSTRAP_DATABASE_USER = "wifi_bootstrap";
 const BOOTSTRAP_LOCK_NAME = "wifi-entelsat.initial-admin-bootstrap.v1";
+const RESET_PASSWORD_LOCK_NAME = "wifi-entelsat.admin-password-reset.v1";
 const INITIAL_ROLE_CODE = "chain_admin";
 const INITIAL_ROLE_NAME = "Administrador de cadena";
 
@@ -71,6 +72,15 @@ export class InitialAdminBootstrapConflictError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "InitialAdminBootstrapConflictError";
+  }
+}
+
+export class AdminPasswordResetError extends Error {
+  readonly code = "ADMIN_PASSWORD_RESET_ERROR";
+
+  constructor(message: string) {
+    super(message);
+    this.name = "AdminPasswordResetError";
   }
 }
 
@@ -402,6 +412,164 @@ export async function bootstrapInitialAdmin<OneTimeOutput>(
         tenantId,
         userId,
         oneTimeOutput: material.oneTimeOutput,
+      };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    }
+  } finally {
+    await client.end();
+  }
+}
+
+export interface AdminPasswordResetInput {
+  emailHmac: Uint8Array;
+  passwordHash: string;
+}
+
+export interface AdminPasswordResetResult {
+  userId: string;
+  tenantIds: string[];
+  revokedSessionCount: number;
+}
+
+/**
+ * Deployment-only emergency reset for an existing administrator password.
+ *
+ * It intentionally authenticates with the isolated `wifi_bootstrap` identity,
+ * bypasses RLS inside one audited transaction, and never receives plaintext
+ * email or password. Callers provide only the HMAC identity and scrypt hash.
+ */
+export async function resetAdminPassword(
+  connectionString: string,
+  input: AdminPasswordResetInput,
+): Promise<AdminPasswordResetResult> {
+  assertBootstrapConnectionString(connectionString);
+  if (input.emailHmac.byteLength !== 32) {
+    throw new TypeError("emailHmac must be a 32-byte digest");
+  }
+  if (!input.passwordHash.startsWith("$scrypt$")) {
+    throw new TypeError("Admin password reset requires a scrypt hash");
+  }
+
+  const client = new Client({
+    connectionString,
+    application_name: "wifi-entelsat-admin-password-reset",
+  });
+  await client.connect();
+
+  try {
+    const identity = await client.query<{
+      current_user: string;
+      session_user: string;
+      rolsuper: boolean;
+    }>(`
+      SELECT current_user, session_user, role.rolsuper
+        FROM pg_catalog.pg_roles AS role
+       WHERE role.rolname = current_user
+    `);
+    const principal = identity.rows[0];
+    if (
+      !principal ||
+      principal.current_user !== BOOTSTRAP_DATABASE_USER ||
+      principal.session_user !== BOOTSTRAP_DATABASE_USER ||
+      !principal.rolsuper
+    ) {
+      throw new TypeError(
+        `Admin password reset requires the dedicated ${BOOTSTRAP_DATABASE_USER} superuser`,
+      );
+    }
+
+    await client.query("BEGIN");
+    try {
+      await client.query("SET LOCAL row_security = off");
+      await client.query("SET LOCAL lock_timeout = '10s'");
+      await client.query("SET LOCAL statement_timeout = '60s'");
+      await client.query("SET LOCAL idle_in_transaction_session_timeout = '60s'");
+      await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [
+        RESET_PASSWORD_LOCK_NAME,
+      ]);
+
+      const userResult = await client.query<ExistingUserRow>(
+        `SELECT id, status
+           FROM app.admin_users
+          WHERE email_hmac = $1
+          FOR UPDATE`,
+        [Buffer.from(input.emailHmac)],
+      );
+      const user = userResult.rows[0];
+      if (!user) {
+        throw new AdminPasswordResetError("No administrator matches the requested identity");
+      }
+      if (user.status !== "active") {
+        throw new AdminPasswordResetError("The requested administrator is not active");
+      }
+
+      const tenantResult = await client.query<{ tenant_id: string }>(
+        `SELECT tenant_id
+           FROM app.tenant_memberships
+          WHERE user_id = $1
+            AND status = 'active'
+          ORDER BY tenant_id`,
+        [user.id],
+      );
+      const tenantIds = tenantResult.rows.map((row) => row.tenant_id);
+      if (tenantIds.length === 0) {
+        throw new AdminPasswordResetError("The requested administrator has no active tenant");
+      }
+
+      const credentialResult = await client.query(
+        `UPDATE app.admin_credentials
+            SET password_hash = $2,
+                hash_algorithm = 'scrypt',
+                hash_version = hash_version + 1,
+                failed_attempts = 0,
+                locked_until = NULL,
+                password_changed_at = clock_timestamp(),
+                updated_at = clock_timestamp()
+          WHERE user_id = $1`,
+        [user.id, input.passwordHash],
+      );
+      if (credentialResult.rowCount !== 1) {
+        throw new AdminPasswordResetError("The requested administrator has no password credential");
+      }
+
+      const sessionResult = await client.query(
+        `UPDATE app.admin_sessions
+            SET revoked_at = clock_timestamp()
+          WHERE user_id = $1
+            AND revoked_at IS NULL`,
+        [user.id],
+      );
+
+      for (const tenantId of tenantIds) {
+        await client.query(
+          `INSERT INTO audit.audit_logs
+             (id, tenant_id, actor_type, actor_id, action, resource_type, resource_id,
+              scope, after_redacted, correlation_id, reason, occurred_at)
+           VALUES ($1, $2, 'service', NULL, 'admin.password_reset', 'admin_user', $3,
+                   $4::jsonb, $5::jsonb, $6,
+                   'Deployment emergency reset using the isolated database identity',
+                   clock_timestamp())`,
+          [
+            randomUUID(),
+            tenantId,
+            user.id,
+            JSON.stringify({ tenantId }),
+            JSON.stringify({
+              passwordHash: "rotated",
+              revokedSessionCount: sessionResult.rowCount ?? 0,
+            }),
+            randomUUID(),
+          ],
+        );
+      }
+
+      await client.query("COMMIT");
+      return {
+        userId: user.id,
+        tenantIds,
+        revokedSessionCount: sessionResult.rowCount ?? 0,
       };
     } catch (error) {
       await client.query("ROLLBACK");
