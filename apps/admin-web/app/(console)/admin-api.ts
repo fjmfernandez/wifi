@@ -8,7 +8,14 @@ export async function adminApi<T>(path: string, init?: RequestInit): Promise<T> 
   });
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(text || `Error HTTP ${response.status}`);
+    let parsedMessage: string | undefined;
+    try {
+      const problem = JSON.parse(text) as { detail?: string; message?: string };
+      parsedMessage = problem.detail ?? problem.message;
+    } catch {
+      parsedMessage = undefined;
+    }
+    throw new Error(parsedMessage ?? (text || `Error HTTP ${response.status}`));
   }
   return (await response.json()) as T;
 }

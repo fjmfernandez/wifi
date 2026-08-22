@@ -5,6 +5,7 @@ import {
   Clock3,
   Gauge,
   HardDrive,
+  Pencil,
   Plus,
   Radio,
   Smartphone,
@@ -81,6 +82,42 @@ export default function ServicesPage() {
       setError(cause instanceof Error ? cause.message : "No se pudo crear la política");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function editPolicy(policy: PolicyView): Promise<void> {
+    const name = window.prompt("Nombre de la política", policy.name);
+    if (!name) return;
+    const downloadMbps = window.prompt(
+      "Bajada Mbps",
+      policy.downloadKbps ? String(Math.round(policy.downloadKbps / 1000)) : "",
+    );
+    const uploadMbps = window.prompt(
+      "Subida Mbps",
+      policy.uploadKbps ? String(Math.round(policy.uploadKbps / 1000)) : "",
+    );
+    const hours = window.prompt(
+      "Horas de sesión",
+      String(Math.round((policy.sessionTimeoutSeconds ?? 86_400) / 3600)),
+    );
+    const devices = window.prompt(
+      "Dispositivos simultáneos",
+      `${policy.maxConcurrentDevices ?? 1}`,
+    );
+    try {
+      await adminApi<PolicyView>(`/api/v1/admin/policies/${policy.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name,
+          downloadKbps: downloadMbps ? Number(downloadMbps) * 1000 : undefined,
+          uploadKbps: uploadMbps ? Number(uploadMbps) * 1000 : undefined,
+          sessionTimeoutHours: hours || undefined,
+          maxConcurrentDevices: devices || undefined,
+        }),
+      });
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudo editar la política");
     }
   }
 
@@ -179,6 +216,14 @@ export default function ServicesPage() {
                   value={`${policy.maxConcurrentDevices ?? 1}`}
                 />
               </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="mt-4"
+                onClick={() => void editPolicy(policy)}
+              >
+                <Pencil className="size-3.5" /> Editar y publicar v{(policy.version ?? 1) + 1}
+              </Button>
             </div>
           </Card>
         ))}

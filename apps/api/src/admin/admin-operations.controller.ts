@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, Req } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type { FastifyRequest } from "fastify";
 import { z } from "zod";
@@ -33,6 +33,12 @@ const gatewayInputSchema = z.object({
   model: z.string().trim().max(100).optional(),
   serial: z.string().trim().max(100).optional(),
 });
+
+const gatewayUpdateSchema = gatewayInputSchema
+  .extend({
+    status: z.enum(["pending", "online", "degraded", "offline", "retired"]).optional(),
+  })
+  .partial();
 
 const organizationInputSchema = z.object({
   code: z
@@ -71,6 +77,12 @@ const voucherBatchInputSchema = z.object({
   defaultMaxDevices: z.coerce.number().int().min(1).max(20).optional(),
 });
 
+const idParamSchema = z.uuid();
+const siteUpdateSchema = siteInputSchema.partial();
+const organizationUpdateSchema = organizationInputSchema.partial();
+const policyUpdateSchema = policyInputSchema.partial();
+const portalUpdateSchema = portalInputSchema.partial();
+
 @Controller("admin")
 export class AdminOperationsController {
   private readonly sessions: AdminSessionReader;
@@ -101,6 +113,29 @@ export class AdminOperationsController {
     );
   }
 
+  @Patch("organizations/:id")
+  async updateOrganization(
+    @Req() request: FastifyRequest,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ): Promise<unknown> {
+    const session = await this.sessions.requireSession(request, ["organization.update"]);
+    return this.operations.updateOrganization(
+      session.tenantId,
+      idParamSchema.parse(id),
+      organizationUpdateSchema.parse(body),
+    );
+  }
+
+  @Delete("organizations/:id")
+  async archiveOrganization(
+    @Req() request: FastifyRequest,
+    @Param("id") id: string,
+  ): Promise<unknown> {
+    const session = await this.sessions.requireSession(request, ["organization.delete"]);
+    return this.operations.archiveOrganization(session.tenantId, idParamSchema.parse(id));
+  }
+
   @Get("sites")
   async listSites(@Req() request: FastifyRequest): Promise<unknown[]> {
     const session = await this.sessions.requireSession(request, ["site.read"]);
@@ -111,6 +146,26 @@ export class AdminOperationsController {
   async createSite(@Req() request: FastifyRequest, @Body() body: unknown): Promise<unknown> {
     const session = await this.sessions.requireSession(request, ["site.create"]);
     return this.operations.createSite(session.tenantId, siteInputSchema.parse(body));
+  }
+
+  @Patch("sites/:id")
+  async updateSite(
+    @Req() request: FastifyRequest,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ): Promise<unknown> {
+    const session = await this.sessions.requireSession(request, ["site.update"]);
+    return this.operations.updateSite(
+      session.tenantId,
+      idParamSchema.parse(id),
+      siteUpdateSchema.parse(body),
+    );
+  }
+
+  @Delete("sites/:id")
+  async archiveSite(@Req() request: FastifyRequest, @Param("id") id: string): Promise<unknown> {
+    const session = await this.sessions.requireSession(request, ["site.delete"]);
+    return this.operations.archiveSite(session.tenantId, idParamSchema.parse(id));
   }
 
   @Get("gateways")
@@ -125,6 +180,26 @@ export class AdminOperationsController {
     return this.operations.createGateway(session.tenantId, gatewayInputSchema.parse(body));
   }
 
+  @Patch("gateways/:id")
+  async updateGateway(
+    @Req() request: FastifyRequest,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ): Promise<unknown> {
+    const session = await this.sessions.requireSession(request, ["gateway.update"]);
+    return this.operations.updateGateway(
+      session.tenantId,
+      idParamSchema.parse(id),
+      gatewayUpdateSchema.parse(body),
+    );
+  }
+
+  @Delete("gateways/:id")
+  async archiveGateway(@Req() request: FastifyRequest, @Param("id") id: string): Promise<unknown> {
+    const session = await this.sessions.requireSession(request, ["gateway.delete"]);
+    return this.operations.archiveGateway(session.tenantId, idParamSchema.parse(id));
+  }
+
   @Get("policies")
   async listPolicies(@Req() request: FastifyRequest): Promise<unknown[]> {
     const session = await this.sessions.requireSession(request, ["access_policy.read"]);
@@ -137,6 +212,26 @@ export class AdminOperationsController {
     return this.operations.createPolicy(session.tenantId, policyInputSchema.parse(body));
   }
 
+  @Patch("policies/:id")
+  async updatePolicy(
+    @Req() request: FastifyRequest,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ): Promise<unknown> {
+    const session = await this.sessions.requireSession(request, ["access_policy.update"]);
+    return this.operations.updatePolicy(
+      session.tenantId,
+      idParamSchema.parse(id),
+      policyUpdateSchema.parse(body),
+    );
+  }
+
+  @Delete("policies/:id")
+  async archivePolicy(@Req() request: FastifyRequest, @Param("id") id: string): Promise<unknown> {
+    const session = await this.sessions.requireSession(request, ["access_policy.delete"]);
+    return this.operations.archivePolicy(session.tenantId, idParamSchema.parse(id));
+  }
+
   @Get("portals")
   async listPortals(@Req() request: FastifyRequest): Promise<unknown[]> {
     const session = await this.sessions.requireSession(request, ["portal.read"]);
@@ -147,6 +242,26 @@ export class AdminOperationsController {
   async createPortal(@Req() request: FastifyRequest, @Body() body: unknown): Promise<unknown> {
     const session = await this.sessions.requireSession(request, ["portal.create"]);
     return this.operations.createPortal(session.tenantId, portalInputSchema.parse(body));
+  }
+
+  @Patch("portals/:id")
+  async updatePortal(
+    @Req() request: FastifyRequest,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ): Promise<unknown> {
+    const session = await this.sessions.requireSession(request, ["portal.update"]);
+    return this.operations.updatePortal(
+      session.tenantId,
+      idParamSchema.parse(id),
+      portalUpdateSchema.parse(body),
+    );
+  }
+
+  @Delete("portals/:id")
+  async archivePortal(@Req() request: FastifyRequest, @Param("id") id: string): Promise<unknown> {
+    const session = await this.sessions.requireSession(request, ["portal.delete"]);
+    return this.operations.archivePortal(session.tenantId, idParamSchema.parse(id));
   }
 
   @Get("voucher-batches")

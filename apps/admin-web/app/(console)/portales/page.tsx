@@ -2,10 +2,12 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import {
+  Archive,
   Check,
   Eye,
   Languages,
   Palette,
+  Pencil,
   Plus,
   RefreshCcw,
   Smartphone,
@@ -65,6 +67,37 @@ export default function PortalsPage() {
       setError(cause instanceof Error ? cause.message : "No se pudo crear el portal");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function editPortal(portal: PortalView): Promise<void> {
+    const name = window.prompt("Nombre del portal", portal.name);
+    if (!name) return;
+    const headline = window.prompt("Título del portal", "Bienvenido al WiFi");
+    const body = window.prompt(
+      "Texto del portal",
+      "Acepta las condiciones para acceder a Internet.",
+    );
+    try {
+      await adminApi<PortalView>(`/api/v1/admin/portals/${portal.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ name, headline: headline || undefined, body: body || undefined }),
+      });
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudo editar el portal");
+    }
+  }
+
+  async function archivePortal(portal: PortalView): Promise<void> {
+    if (!window.confirm(`¿Archivar ${portal.name}?`)) return;
+    try {
+      await adminApi<{ archived: boolean }>(`/api/v1/admin/portals/${portal.id}`, {
+        method: "DELETE",
+      });
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudo archivar el portal");
     }
   }
 
@@ -152,6 +185,14 @@ export default function PortalsPage() {
                   {portal.fallbackLocale.toUpperCase()}
                 </span>
                 <span className="rounded-lg bg-slate-100 px-2 py-1">{portal.kind}</span>
+              </div>
+              <div className="mt-5 flex gap-2 border-t border-slate-100 pt-4">
+                <Button variant="secondary" size="sm" onClick={() => void editPortal(portal)}>
+                  <Pencil className="size-3.5" /> Editar
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => void archivePortal(portal)}>
+                  <Archive className="size-3.5" /> Archivar
+                </Button>
               </div>
             </div>
           </Card>

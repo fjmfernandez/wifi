@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { Building2, Plus, RefreshCcw } from "lucide-react";
+import { Archive, Building2, Pencil, Plus, RefreshCcw } from "lucide-react";
 
 import { Badge, Button } from "@wifi/ui";
 
@@ -61,6 +61,35 @@ export default function OrganizationsPage() {
     }
   }
 
+  async function editOrganization(organization: OrganizationView): Promise<void> {
+    const name = window.prompt("Nombre comercial", organization.name);
+    if (!name) return;
+    const code = window.prompt("Código", organization.code);
+    if (!code) return;
+    const legalName = window.prompt("Razón social", organization.legalName ?? "");
+    try {
+      await adminApi<OrganizationView>(`/api/v1/admin/organizations/${organization.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ name, code, legalName: legalName || undefined }),
+      });
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudo editar la organización");
+    }
+  }
+
+  async function archiveOrganization(organization: OrganizationView): Promise<void> {
+    if (!window.confirm(`¿Archivar ${organization.name}?`)) return;
+    try {
+      await adminApi<{ archived: boolean }>(`/api/v1/admin/organizations/${organization.id}`, {
+        method: "DELETE",
+      });
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudo archivar la organización");
+    }
+  }
+
   return (
     <>
       <PageHeader
@@ -101,7 +130,7 @@ export default function OrganizationsPage() {
         <table className="w-full min-w-[760px] border-collapse text-left">
           <thead>
             <tr className="border-b border-slate-100 bg-slate-50/70">
-              {["Organización", "Código", "Sedes", "Estado"].map((item) => (
+              {["Organización", "Código", "Sedes", "Estado", "Acciones"].map((item) => (
                 <th
                   key={item}
                   className="px-5 py-3 text-[10px] font-extrabold uppercase tracking-wider text-slate-400"
@@ -137,6 +166,24 @@ export default function OrganizationsPage() {
                   <Badge variant={organization.status === "active" ? "success" : "warning"} dot>
                     {organization.status}
                   </Badge>
+                </td>
+                <td className="px-5 py-4">
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => void editOrganization(organization)}
+                    >
+                      <Pencil className="size-3.5" /> Editar
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => void archiveOrganization(organization)}
+                    >
+                      <Archive className="size-3.5" /> Archivar
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ))}

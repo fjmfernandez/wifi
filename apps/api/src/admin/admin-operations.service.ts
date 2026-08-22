@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { keyedDigest } from "@wifi/security";
 
@@ -52,6 +52,53 @@ export interface CreateVoucherBatchInput {
   expiresAt: string;
   defaultMaxUses?: number | undefined;
   defaultMaxDevices?: number | undefined;
+}
+
+export interface UpdateOrganizationInput {
+  code?: string | undefined;
+  name?: string | undefined;
+  legalName?: string | undefined;
+}
+
+export interface UpdateSiteInput {
+  organizationId?: string | undefined;
+  code?: string | undefined;
+  name?: string | undefined;
+  countryCode?: string | undefined;
+  timezone?: string | undefined;
+}
+
+export interface UpdateGatewayInput {
+  siteId?: string | undefined;
+  name?: string | undefined;
+  nasIdentifier?: string | undefined;
+  model?: string | undefined;
+  serial?: string | undefined;
+  status?: string | undefined;
+}
+
+export interface UpdatePolicyInput {
+  name?: string | undefined;
+  downloadKbps?: number | undefined;
+  uploadKbps?: number | undefined;
+  sessionTimeoutHours?: number | undefined;
+  quotaGb?: number | undefined;
+  maxConcurrentDevices?: number | undefined;
+}
+
+export interface UpdatePortalInput {
+  name?: string | undefined;
+  headline?: string | undefined;
+  body?: string | undefined;
+}
+
+function isUniqueConstraintError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "P2002"
+  );
 }
 
 @Injectable()
@@ -107,6 +154,47 @@ export class AdminOperationsService {
         sitesTotal: 0,
         createdAt: organization.createdAt.toISOString(),
       };
+    });
+  }
+
+  async updateOrganization(
+    tenantId: string,
+    organizationId: string,
+    input: UpdateOrganizationInput,
+  ): Promise<unknown> {
+    return this.database.withTenant(tenantId, async (transaction) => {
+      const current = await transaction.organization.findFirst({
+        where: { tenantId, id: organizationId, archivedAt: null },
+      });
+      if (!current) throw new NotFoundException("Organización no encontrada");
+      const organization = await transaction.organization.update({
+        where: { tenantId_id: { tenantId, id: organizationId } },
+        data: {
+          ...(input.code === undefined ? {} : { code: input.code }),
+          ...(input.name === undefined ? {} : { name: input.name }),
+          ...(input.legalName === undefined ? {} : { legalName: input.legalName || null }),
+        },
+        include: { sites: { where: { archivedAt: null }, select: { id: true } } },
+      });
+      return {
+        id: organization.id,
+        code: organization.code,
+        name: organization.name,
+        legalName: organization.legalName,
+        status: organization.status,
+        sitesTotal: organization.sites.length,
+        createdAt: organization.createdAt.toISOString(),
+      };
+    });
+  }
+
+  async archiveOrganization(tenantId: string, organizationId: string): Promise<unknown> {
+    return this.database.withTenant(tenantId, async (transaction) => {
+      const organization = await transaction.organization.update({
+        where: { tenantId_id: { tenantId, id: organizationId } },
+        data: { archivedAt: new Date(), status: "archived" },
+      });
+      return { id: organization.id, archived: true };
     });
   }
 
@@ -179,6 +267,53 @@ export class AdminOperationsService {
     });
   }
 
+  async updateSite(tenantId: string, siteId: string, input: UpdateSiteInput): Promise<unknown> {
+    return this.database.withTenant(tenantId, async (transaction) => {
+      const current = await transaction.site.findFirst({
+        where: { tenantId, id: siteId, archivedAt: null },
+      });
+      if (!current) throw new NotFoundException("Sede no encontrada");
+      if (input.organizationId) {
+        const organization = await transaction.organization.findFirst({
+          where: { tenantId, id: input.organizationId, archivedAt: null },
+        });
+        if (!organization) throw new NotFoundException("Organización no encontrada");
+      }
+      const site = await transaction.site.update({
+        where: { tenantId_id: { tenantId, id: siteId } },
+        data: {
+          ...(input.organizationId === undefined ? {} : { organizationId: input.organizationId }),
+          ...(input.code === undefined ? {} : { code: input.code }),
+          ...(input.name === undefined ? {} : { name: input.name }),
+          ...(input.countryCode === undefined ? {} : { countryCode: input.countryCode }),
+          ...(input.timezone === undefined ? {} : { timezone: input.timezone }),
+        },
+        include: { gateways: { where: { retiredAt: null }, select: { id: true, status: true } } },
+      });
+      return {
+        id: site.id,
+        code: site.code,
+        name: site.name,
+        status: site.status,
+        timezone: site.timezone,
+        countryCode: site.countryCode,
+        gatewaysTotal: site.gateways.length,
+        gatewaysOnline: site.gateways.filter((gateway) => gateway.status === "online").length,
+        createdAt: site.createdAt.toISOString(),
+      };
+    });
+  }
+
+  async archiveSite(tenantId: string, siteId: string): Promise<unknown> {
+    return this.database.withTenant(tenantId, async (transaction) => {
+      const site = await transaction.site.update({
+        where: { tenantId_id: { tenantId, id: siteId } },
+        data: { archivedAt: new Date(), status: "archived" },
+      });
+      return { id: site.id, archived: true };
+    });
+  }
+
   async listGateways(tenantId: string): Promise<unknown[]> {
     return this.database.withTenant(tenantId, async (transaction) => {
       const gateways = await transaction.gateway.findMany({
@@ -211,17 +346,26 @@ export class AdminOperationsService {
       });
       if (!site) throw new NotFoundException("Sede no encontrada");
 
-      const gateway = await transaction.gateway.create({
-        data: {
-          tenantId,
-          siteId: site.id,
-          name: input.name,
-          ...(input.model ? { model: input.model } : {}),
-          ...(input.serial ? { serial: input.serial } : {}),
-          nasIdentifier: input.nasIdentifier,
-          status: "pending",
-        },
-      });
+      const gateway = await transaction.gateway
+        .create({
+          data: {
+            tenantId,
+            siteId: site.id,
+            name: input.name,
+            ...(input.model ? { model: input.model } : {}),
+            ...(input.serial ? { serial: input.serial } : {}),
+            nasIdentifier: input.nasIdentifier,
+            status: "pending",
+          },
+        })
+        .catch((error: unknown) => {
+          if (isUniqueConstraintError(error)) {
+            throw new ConflictException(
+              "Ya existe un gateway con ese NAS Identifier. Edita el gateway existente o usa otro identificador.",
+            );
+          }
+          throw error;
+        });
       return {
         id: gateway.id,
         siteId: gateway.siteId,
@@ -236,6 +380,68 @@ export class AdminOperationsService {
         lastSeenAt: null,
         createdAt: gateway.createdAt.toISOString(),
       };
+    });
+  }
+
+  async updateGateway(
+    tenantId: string,
+    gatewayId: string,
+    input: UpdateGatewayInput,
+  ): Promise<unknown> {
+    return this.database.withTenant(tenantId, async (transaction) => {
+      const current = await transaction.gateway.findFirst({
+        where: { tenantId, id: gatewayId, retiredAt: null },
+      });
+      if (!current) throw new NotFoundException("Gateway no encontrado");
+      if (input.siteId) {
+        const site = await transaction.site.findFirst({
+          where: { tenantId, id: input.siteId, archivedAt: null },
+        });
+        if (!site) throw new NotFoundException("Sede no encontrada");
+      }
+      const gateway = await transaction.gateway
+        .update({
+          where: { tenantId_id: { tenantId, id: gatewayId } },
+          data: {
+            ...(input.siteId === undefined ? {} : { siteId: input.siteId }),
+            ...(input.name === undefined ? {} : { name: input.name }),
+            ...(input.nasIdentifier === undefined ? {} : { nasIdentifier: input.nasIdentifier }),
+            ...(input.model === undefined ? {} : { model: input.model || null }),
+            ...(input.serial === undefined ? {} : { serial: input.serial || null }),
+            ...(input.status === undefined ? {} : { status: input.status }),
+          },
+          include: { site: { select: { id: true, name: true, code: true } } },
+        })
+        .catch((error: unknown) => {
+          if (isUniqueConstraintError(error)) {
+            throw new ConflictException("Ya existe un gateway con ese NAS Identifier");
+          }
+          throw error;
+        });
+      return {
+        id: gateway.id,
+        siteId: gateway.siteId,
+        siteName: gateway.site.name,
+        siteCode: gateway.site.code,
+        name: gateway.name,
+        model: gateway.model,
+        serial: gateway.serial,
+        nasIdentifier: gateway.nasIdentifier,
+        status: gateway.status,
+        routerOsVersion: gateway.routerOsVersion,
+        lastSeenAt: gateway.lastSeenAt?.toISOString() ?? null,
+        createdAt: gateway.createdAt.toISOString(),
+      };
+    });
+  }
+
+  async archiveGateway(tenantId: string, gatewayId: string): Promise<unknown> {
+    return this.database.withTenant(tenantId, async (transaction) => {
+      const gateway = await transaction.gateway.update({
+        where: { tenantId_id: { tenantId, id: gatewayId } },
+        data: { retiredAt: new Date(), status: "retired" },
+      });
+      return { id: gateway.id, archived: true };
     });
   }
 
@@ -307,6 +513,80 @@ export class AdminOperationsService {
         maxConcurrentDevices: version.maxConcurrentDevices,
         createdAt: policy.createdAt.toISOString(),
       };
+    });
+  }
+
+  async updatePolicy(
+    tenantId: string,
+    policyId: string,
+    input: UpdatePolicyInput,
+  ): Promise<unknown> {
+    return this.database.withTenant(tenantId, async (transaction) => {
+      const policy = await transaction.accessPolicy.findFirst({
+        where: { tenantId, id: policyId, archivedAt: null },
+        include: { versions: { orderBy: { version: "desc" }, take: 1 } },
+      });
+      if (!policy) throw new NotFoundException("Política no encontrada");
+      const previous = policy.versions[0];
+      if (input.name !== undefined) {
+        await transaction.accessPolicy.update({
+          where: { tenantId_id: { tenantId, id: policyId } },
+          data: { name: input.name },
+        });
+      }
+      const version = await transaction.accessPolicyVersion.create({
+        data: {
+          tenantId,
+          policyId,
+          version: (previous?.version ?? 0) + 1,
+          status: "published",
+          publishedAt: new Date(),
+          sessionTimeoutSeconds:
+            (input.sessionTimeoutHours ?? (previous?.sessionTimeoutSeconds ?? 86_400) / 3600) *
+            3600,
+          ...(input.downloadKbps === undefined
+            ? previous?.downloadKbps === null || previous?.downloadKbps === undefined
+              ? {}
+              : { downloadKbps: previous.downloadKbps }
+            : { downloadKbps: input.downloadKbps }),
+          ...(input.uploadKbps === undefined
+            ? previous?.uploadKbps === null || previous?.uploadKbps === undefined
+              ? {}
+              : { uploadKbps: previous.uploadKbps }
+            : { uploadKbps: input.uploadKbps }),
+          ...(input.quotaGb === undefined
+            ? previous?.quotaBytes === null || previous?.quotaBytes === undefined
+              ? {}
+              : { quotaBytes: previous.quotaBytes }
+            : { quotaBytes: BigInt(input.quotaGb) * 1024n ** 3n }),
+          maxConcurrentDevices: input.maxConcurrentDevices ?? previous?.maxConcurrentDevices ?? 1,
+          snapshot: { updatedFrom: "admin-mvp" },
+        },
+      });
+      return {
+        id: policy.id,
+        name: input.name ?? policy.name,
+        status: policy.status,
+        versionId: version.id,
+        version: version.version,
+        versionStatus: version.status,
+        downloadKbps: version.downloadKbps,
+        uploadKbps: version.uploadKbps,
+        sessionTimeoutSeconds: version.sessionTimeoutSeconds,
+        quotaBytes: version.quotaBytes?.toString() ?? null,
+        maxConcurrentDevices: version.maxConcurrentDevices,
+        createdAt: policy.createdAt.toISOString(),
+      };
+    });
+  }
+
+  async archivePolicy(tenantId: string, policyId: string): Promise<unknown> {
+    return this.database.withTenant(tenantId, async (transaction) => {
+      const policy = await transaction.accessPolicy.update({
+        where: { tenantId_id: { tenantId, id: policyId } },
+        data: { archivedAt: new Date(), status: "archived" },
+      });
+      return { id: policy.id, archived: true };
     });
   }
 
@@ -387,6 +667,85 @@ export class AdminOperationsService {
         siteNames: [],
         createdAt: portal.createdAt.toISOString(),
       };
+    });
+  }
+
+  async updatePortal(
+    tenantId: string,
+    portalId: string,
+    input: UpdatePortalInput,
+  ): Promise<unknown> {
+    return this.database.withTenant(tenantId, async (transaction) => {
+      const portal = await transaction.portal.findFirst({
+        where: { tenantId, id: portalId, archivedAt: null },
+        include: { versions: { orderBy: { version: "desc" }, take: 1 } },
+      });
+      if (!portal) throw new NotFoundException("Portal no encontrado");
+      if (input.name !== undefined) {
+        await transaction.portal.update({
+          where: { tenantId_id: { tenantId, id: portalId } },
+          data: { name: input.name },
+        });
+      }
+      const currentVersion = portal.versions[0];
+      const version =
+        currentVersion?.status === "draft"
+          ? currentVersion
+          : await transaction.portalVersion.create({
+              data: {
+                tenantId,
+                portalId,
+                version: (currentVersion?.version ?? 0) + 1,
+                status: "draft",
+                fallbackLocale: currentVersion?.fallbackLocale ?? "es",
+                theme: currentVersion?.theme ?? { brand: "entelsat" },
+              },
+            });
+      await transaction.portalBlock.deleteMany({
+        where: { tenantId, portalVersionId: version.id },
+      });
+      await transaction.portalBlock.createMany({
+        data: [
+          {
+            tenantId,
+            portalVersionId: version.id,
+            kind: "hero",
+            displayOrder: 10,
+            props: {
+              headline: input.headline ?? "Bienvenido al WiFi",
+              body: input.body ?? "Acepta las condiciones para acceder a Internet.",
+            },
+          },
+          {
+            tenantId,
+            portalVersionId: version.id,
+            kind: "accept_button",
+            displayOrder: 20,
+            props: { label: "Acceder a Internet" },
+          },
+        ],
+      });
+      return {
+        id: portal.id,
+        name: input.name ?? portal.name,
+        kind: portal.kind,
+        versionId: version.id,
+        version: version.version,
+        status: version.status,
+        fallbackLocale: version.fallbackLocale,
+        siteNames: [],
+        createdAt: portal.createdAt.toISOString(),
+      };
+    });
+  }
+
+  async archivePortal(tenantId: string, portalId: string): Promise<unknown> {
+    return this.database.withTenant(tenantId, async (transaction) => {
+      const portal = await transaction.portal.update({
+        where: { tenantId_id: { tenantId, id: portalId } },
+        data: { archivedAt: new Date() },
+      });
+      return { id: portal.id, archived: true };
     });
   }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { Plus, RefreshCcw, Router, Wifi } from "lucide-react";
+import { Archive, Pencil, Plus, RefreshCcw, Router, Wifi } from "lucide-react";
 
 import { Badge, Button } from "@wifi/ui";
 
@@ -76,6 +76,41 @@ export default function NetworkPage() {
     }
   }
 
+  async function editGateway(gateway: GatewayView): Promise<void> {
+    const name = window.prompt("Nombre del gateway", gateway.name);
+    if (!name) return;
+    const nasIdentifier = window.prompt("NAS Identifier", gateway.nasIdentifier);
+    if (!nasIdentifier) return;
+    const model = window.prompt("Modelo", gateway.model ?? "");
+    const serial = window.prompt("Serie", gateway.serial ?? "");
+    try {
+      await adminApi<GatewayView>(`/api/v1/admin/gateways/${gateway.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name,
+          nasIdentifier,
+          model: model || undefined,
+          serial: serial || undefined,
+        }),
+      });
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudo editar el gateway");
+    }
+  }
+
+  async function archiveGateway(gateway: GatewayView): Promise<void> {
+    if (!window.confirm(`¿Archivar ${gateway.name}?`)) return;
+    try {
+      await adminApi<{ archived: boolean }>(`/api/v1/admin/gateways/${gateway.id}`, {
+        method: "DELETE",
+      });
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudo archivar el gateway");
+    }
+  }
+
   return (
     <>
       <PageHeader
@@ -129,14 +164,16 @@ export default function NetworkPage() {
         <table className="w-full min-w-[900px] border-collapse text-left">
           <thead>
             <tr className="border-b border-slate-100 bg-slate-50/70">
-              {["Gateway", "Sede", "NAS Identifier", "RouterOS", "Estado"].map((item) => (
-                <th
-                  key={item}
-                  className="px-5 py-3 text-[10px] font-extrabold uppercase tracking-wider text-slate-400"
-                >
-                  {item}
-                </th>
-              ))}
+              {["Gateway", "Sede", "NAS Identifier", "RouterOS", "Estado", "Acciones"].map(
+                (item) => (
+                  <th
+                    key={item}
+                    className="px-5 py-3 text-[10px] font-extrabold uppercase tracking-wider text-slate-400"
+                  >
+                    {item}
+                  </th>
+                ),
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -172,11 +209,21 @@ export default function NetworkPage() {
                     {gateway.status}
                   </Badge>
                 </td>
+                <td className="px-5 py-4">
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="sm" onClick={() => void editGateway(gateway)}>
+                      <Pencil className="size-3.5" /> Editar
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => void archiveGateway(gateway)}>
+                      <Archive className="size-3.5" /> Archivar
+                    </Button>
+                  </div>
+                </td>
               </tr>
             ))}
             {gateways.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-5 py-10 text-center text-sm text-slate-500">
+                <td colSpan={6} className="px-5 py-10 text-center text-sm text-slate-500">
                   <Wifi className="mx-auto mb-2 size-5 text-slate-300" />
                   Crea primero una sede y después registra aquí el gateway.
                 </td>

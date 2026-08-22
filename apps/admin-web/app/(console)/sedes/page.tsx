@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { ArrowUpRight, Download, MapPin, Plus, Router, UsersRound } from "lucide-react";
+import { Archive, Download, MapPin, Pencil, Plus, Router, UsersRound } from "lucide-react";
 
 import { Badge, Button } from "@wifi/ui";
 
@@ -110,6 +110,74 @@ export default function SitesPage() {
       setError(cause instanceof Error ? cause.message : "No se pudo crear el gateway");
     } finally {
       setSavingGateway(false);
+    }
+  }
+
+  async function editSite(site: SiteView): Promise<void> {
+    const name = window.prompt("Nombre de la sede", site.name);
+    if (!name) return;
+    const code = window.prompt("Código de la sede", site.code);
+    if (!code) return;
+    try {
+      await adminApi<SiteView>(`/api/v1/admin/sites/${site.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name,
+          code,
+          countryCode: site.countryCode,
+          timezone: site.timezone,
+        }),
+      });
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudo editar la sede");
+    }
+  }
+
+  async function archiveSite(site: SiteView): Promise<void> {
+    if (!window.confirm(`¿Archivar ${site.name}?`)) return;
+    try {
+      await adminApi<{ archived: boolean }>(`/api/v1/admin/sites/${site.id}`, {
+        method: "DELETE",
+      });
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudo archivar la sede");
+    }
+  }
+
+  async function editGateway(gateway: GatewayView): Promise<void> {
+    const name = window.prompt("Nombre del gateway", gateway.name);
+    if (!name) return;
+    const nasIdentifier = window.prompt("NAS Identifier", gateway.nasIdentifier);
+    if (!nasIdentifier) return;
+    const model = window.prompt("Modelo", gateway.model ?? "");
+    const serial = window.prompt("Serie", gateway.serial ?? "");
+    try {
+      await adminApi<GatewayView>(`/api/v1/admin/gateways/${gateway.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name,
+          nasIdentifier,
+          model: model || undefined,
+          serial: serial || undefined,
+        }),
+      });
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudo editar el gateway");
+    }
+  }
+
+  async function archiveGateway(gateway: GatewayView): Promise<void> {
+    if (!window.confirm(`¿Archivar ${gateway.name}?`)) return;
+    try {
+      await adminApi<{ archived: boolean }>(`/api/v1/admin/gateways/${gateway.id}`, {
+        method: "DELETE",
+      });
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudo archivar el gateway");
     }
   }
 
@@ -244,13 +312,13 @@ export default function SitesPage() {
                   </Badge>
                 </td>
                 <td className="px-5 py-4">
-                  <div className="flex justify-end">
-                    <button
-                      aria-label={`Abrir ${site.name}`}
-                      className="grid size-8 place-items-center rounded-lg text-slate-400 hover:bg-white hover:text-brand-700"
-                    >
-                      <ArrowUpRight className="size-4" />
-                    </button>
+                  <div className="flex justify-end gap-1">
+                    <Button variant="ghost" size="sm" onClick={() => void editSite(site)}>
+                      <Pencil className="size-3.5" /> Editar
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => void archiveSite(site)}>
+                      <Archive className="size-3.5" /> Archivar
+                    </Button>
                   </div>
                 </td>
               </tr>
@@ -283,6 +351,9 @@ export default function SitesPage() {
                 <th className="px-5 py-3 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
                   Estado
                 </th>
+                <th className="px-5 py-3">
+                  <span className="sr-only">Acciones</span>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -303,11 +374,25 @@ export default function SitesPage() {
                       {gateway.status}
                     </Badge>
                   </td>
+                  <td className="px-5 py-4">
+                    <div className="flex justify-end gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => void editGateway(gateway)}>
+                        <Pencil className="size-3.5" /> Editar
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void archiveGateway(gateway)}
+                      >
+                        <Archive className="size-3.5" /> Archivar
+                      </Button>
+                    </div>
+                  </td>
                 </tr>
               ))}
               {!loading && gateways.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-5 py-10 text-center text-sm text-slate-500">
+                  <td colSpan={5} className="px-5 py-10 text-center text-sm text-slate-500">
                     Registra un gateway cuando ya tengas una sede.
                   </td>
                 </tr>
