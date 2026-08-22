@@ -30,7 +30,7 @@ const bootstrapEnvironmentSchema = z
     BOOTSTRAP_DATA_REGION: z.string().trim().min(2).max(32).default("eu-es"),
     BOOTSTRAP_TIMEZONE: z.string().trim().min(3).max(64).default("Europe/Madrid"),
     BOOTSTRAP_ADMIN_EMAIL: normalizedAdminEmailSchema,
-    BOOTSTRAP_ADMIN_PASSWORD: z.string().min(16).max(1024),
+    BOOTSTRAP_ADMIN_PASSWORD: z.string().min(12).max(1024),
     BOOTSTRAP_TOTP_ISSUER: z.string().trim().min(1).max(64).default("Entelsat WiFi"),
     BOOTSTRAP_TOTP_LABEL: z.string().trim().min(1).max(80).default("Autenticador principal"),
     ADMIN_EMAIL_HMAC_KEY_BASE64: base64UrlKey,
