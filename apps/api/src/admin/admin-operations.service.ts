@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 
 import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { keyedDigest } from "@wifi/security";
+import { generateOpaqueToken, keyedDigest } from "@wifi/security";
 
 import type { AppEnvironment } from "../config/environment.js";
 import { DatabaseService } from "../infrastructure/database.service.js";
@@ -92,6 +92,11 @@ export interface UpdatePortalInput {
   body?: string | undefined;
 }
 
+export interface CreateGatewayLinkInput {
+  tunnelClientIp: string;
+  hotspotDnsName: string;
+}
+
 function isUniqueConstraintError(error: unknown): boolean {
   return (
     typeof error === "object" &&
@@ -104,6 +109,7 @@ function isUniqueConstraintError(error: unknown): boolean {
 @Injectable()
 export class AdminOperationsService {
   private readonly voucherKey: Buffer;
+  private readonly captiveIdentifierKey: Buffer;
 
   constructor(
     private readonly database: DatabaseService,
@@ -111,6 +117,10 @@ export class AdminOperationsService {
   ) {
     this.voucherKey = Buffer.from(
       config.getOrThrow<string>("VOUCHER_HMAC_MASTER_KEY_BASE64"),
+      "base64url",
+    );
+    this.captiveIdentifierKey = Buffer.from(
+      config.getOrThrow<string>("CAPTIVE_IDENTIFIER_HMAC_KEY_BASE64"),
       "base64url",
     );
   }
@@ -442,6 +452,68 @@ export class AdminOperationsService {
         data: { retiredAt: new Date(), status: "retired" },
       });
       return { id: gateway.id, archived: true };
+    });
+  }
+
+  async createGatewayLinkMaterial(
+    tenantId: string,
+    gatewayId: string,
+    input: CreateGatewayLinkInput,
+  ): Promise<unknown> {
+    return this.database.withTenant(tenantId, async (transaction) => {
+      const gateway = await transaction.gateway.findFirst({
+        where: { tenantId, id: gatewayId, retiredAt: null },
+        include: { site: { select: { name: true, code: true } } },
+      });
+      if (!gateway) throw new NotFoundException("Gateway no encontrado");
+
+      await transaction.radiusNasRegistry
+        .upsert({
+          where: { tenantId_gatewayId: { tenantId, gatewayId } },
+          update: { nasIdentifier: gateway.nasIdentifier, active: true },
+          create: {
+            tenantId,
+            gatewayId,
+            nasIdentifier: gateway.nasIdentifier,
+            active: true,
+          },
+        })
+        .catch((error: unknown) => {
+          if (isUniqueConstraintError(error)) {
+            throw new ConflictException("Ese NAS Identifier está asociado a otro gateway");
+          }
+          throw error;
+        });
+
+      const gatewayLocator = generateOpaqueToken(32);
+      const radiusSecret = generateOpaqueToken(32);
+      const normalizedDnsName = input.hotspotDnsName.toLowerCase();
+      const allowedLoginOrigins = [`http://${normalizedDnsName}`, `https://${normalizedDnsName}`];
+      await transaction.gatewayCaptiveLocator.create({
+        data: {
+          tenantId,
+          gatewayId,
+          locatorHash: Buffer.from(
+            keyedDigest(gatewayLocator, this.captiveIdentifierKey, "captive.gateway-locator.v1"),
+          ),
+          allowedLoginOrigins,
+          expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60_000),
+        },
+      });
+
+      const radiusClientName = gateway.nasIdentifier.replace(/[^A-Za-z0-9_.-]/g, "-");
+      return {
+        gatewayId: gateway.id,
+        gatewayName: gateway.name,
+        siteName: gateway.site.name,
+        nasIdentifier: gateway.nasIdentifier,
+        tunnelClientIp: input.tunnelClientIp,
+        hotspotDnsName: normalizedDnsName,
+        gatewayLocator,
+        radiusSecret,
+        radiusClientLine: `${radiusClientName}\t${input.tunnelClientIp}\t${radiusSecret}`,
+        allowedLoginOrigins,
+      };
     });
   }
 

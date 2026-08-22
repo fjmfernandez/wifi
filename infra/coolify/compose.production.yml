@@ -124,6 +124,33 @@ services:
     tmpfs:
       - /tmp:size=64m,noexec,nosuid
 
+  radius:
+    build:
+      context: infra/freeradius
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      RADIUS_DB_HOST: postgres
+      RADIUS_DB_PORT: "5432"
+      RADIUS_DB_NAME: wifi_entelsat
+      RADIUS_DB_USER: wifi_radius
+      RADIUS_DB_PASSWORD: ${POSTGRES_RADIUS_PASSWORD:?POSTGRES_RADIUS_PASSWORD is required}
+      RADIUS_DB_SSLMODE: disable
+      RADIUS_ALLOW_INSECURE_DB: lab-only
+      RADIUS_CLIENTS_TSV: ${RADIUS_CLIENTS_TSV:-local-disabled	127.0.0.1	LOCAL_ONLY_PLACEHOLDER_SECRET_123456}
+    ports:
+      - "1812:1812/udp"
+      - "1813:1813/udp"
+    volumes:
+      - radius_radacct:/var/log/freeradius/radacct
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+
   migrate:
     build:
       context: .
@@ -182,3 +209,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  radius_radacct:

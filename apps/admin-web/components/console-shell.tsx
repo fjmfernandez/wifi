@@ -5,6 +5,7 @@ import {
   BarChart3,
   Bell,
   Building2,
+  Cable,
   ChevronDown,
   CircleUserRound,
   FileCheck2,
@@ -35,6 +36,7 @@ const primaryNavigation: NavigationItem[] = [
   { href: "/organizaciones", label: "Organizaciones", icon: Building2 },
   { href: "/sedes", label: "Sedes", icon: PanelTop },
   { href: "/red", label: "Red y gateways", icon: Network, badge: "2" },
+  { href: "/routerboard", label: "Vincular RB", icon: Cable },
   { href: "/portales", label: "Portales", icon: SlidersHorizontal },
   { href: "/servicios", label: "Servicios", icon: KeyRound },
 ];

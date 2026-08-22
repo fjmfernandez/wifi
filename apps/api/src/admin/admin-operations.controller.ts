@@ -40,6 +40,17 @@ const gatewayUpdateSchema = gatewayInputSchema
   })
   .partial();
 
+const gatewayLinkInputSchema = z.object({
+  tunnelClientIp: z.ipv4(),
+  hotspotDnsName: z
+    .string()
+    .trim()
+    .min(4)
+    .max(253)
+    .regex(/^[a-z0-9.-]+$/i)
+    .transform((value) => value.toLowerCase()),
+});
+
 const organizationInputSchema = z.object({
   code: z
     .string()
@@ -198,6 +209,23 @@ export class AdminOperationsController {
   async archiveGateway(@Req() request: FastifyRequest, @Param("id") id: string): Promise<unknown> {
     const session = await this.sessions.requireSession(request, ["gateway.delete"]);
     return this.operations.archiveGateway(session.tenantId, idParamSchema.parse(id));
+  }
+
+  @Post("gateways/:id/link-material")
+  async createGatewayLinkMaterial(
+    @Req() request: FastifyRequest,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ): Promise<unknown> {
+    const session = await this.sessions.requireSession(request, [
+      "gateway.update",
+      "gateway.secret.reveal",
+    ]);
+    return this.operations.createGatewayLinkMaterial(
+      session.tenantId,
+      idParamSchema.parse(id),
+      gatewayLinkInputSchema.parse(body),
+    );
   }
 
   @Get("policies")

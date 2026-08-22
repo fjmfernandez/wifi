@@ -37,6 +37,20 @@ case "$runtime_dir" in
   *) die "RADIUS_RUNTIME_DIR must stay below /run" ;;
 esac
 
+install -d -m 0750 "$runtime_dir"
+
+if [ -n "${RADIUS_CLIENTS_TSV:-}" ]; then
+  clients_secret="$runtime_dir/clients-secret-env"
+  printf '%s\n' "$RADIUS_CLIENTS_TSV" > "$clients_secret"
+  chmod 0600 "$clients_secret"
+fi
+
+if [ -n "${RADIUS_DB_PASSWORD:-}" ]; then
+  db_password_file="$runtime_dir/db-password-env"
+  printf '%s\n' "$RADIUS_DB_PASSWORD" > "$db_password_file"
+  chmod 0600 "$db_password_file"
+fi
+
 require_regular_secret "$clients_secret"
 require_regular_secret "$db_password_file"
 validate_identifier "RADIUS_DB_HOST" "$db_host"
@@ -74,11 +88,6 @@ case "$db_sslmode" in
   *) die "RADIUS_DB_SSLMODE must be verify-full, verify-ca, or lab-only disable" ;;
 esac
 export PGSSLMODE="$db_sslmode"
-
-# The container intentionally drops every Linux capability.  In particular,
-# root cannot chown a tmpfs after CAP_CHOWN is removed, so create the runtime
-# directory with its final mode and keep the rendered configuration root-only.
-install -d -m 0750 "$runtime_dir"
 
 sql_runtime_tmp="$runtime_dir/sql-runtime.conf.tmp"
 sql_runtime="$runtime_dir/sql-runtime.conf"
