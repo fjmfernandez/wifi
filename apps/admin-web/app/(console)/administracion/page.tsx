@@ -75,9 +75,11 @@ export default function DashboardPage() {
             <Button variant="secondary">
               <Download className="size-4" /> Exportar informe
             </Button>
-            <Button>
-              <Plus className="size-4" /> Nueva sede
-            </Button>
+            <Link href="/sedes">
+              <Button>
+                <Plus className="size-4" /> Nueva sede
+              </Button>
+            </Link>
           </>
         }
       />
@@ -229,9 +231,11 @@ export default function DashboardPage() {
             rollback.
           </p>
         </div>
-        <Button variant="secondary">
-          Configurar gateway <Radio className="size-4" />
-        </Button>
+        <Link href="/red">
+          <Button variant="secondary">
+            Configurar gateway <Radio className="size-4" />
+          </Button>
+        </Link>
       </div>
     </>
   );

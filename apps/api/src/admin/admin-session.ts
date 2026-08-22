@@ -1,10 +1,10 @@
 import { ForbiddenException, UnauthorizedException } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
+import type { ConfigService } from "@nestjs/config";
 import type { AdminSessionView, PermissionId } from "@wifi/contracts";
 import type { FastifyRequest } from "fastify";
 
+import type { AdminAuthService } from "../auth/admin-auth.service.js";
 import type { AppEnvironment } from "../config/environment.js";
-import { AdminAuthService } from "../auth/admin-auth.service.js";
 
 function parseCookie(header: string | undefined, name: string): string | undefined {
   for (const item of header?.split(";") ?? []) {

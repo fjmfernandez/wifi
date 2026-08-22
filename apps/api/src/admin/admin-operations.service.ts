@@ -1,5 +1,10 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { randomBytes } from "node:crypto";
 
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { keyedDigest } from "@wifi/security";
+
+import type { AppEnvironment } from "../config/environment.js";
 import { DatabaseService } from "../infrastructure/database.service.js";
 
 export interface CreateSiteInput {
@@ -7,6 +12,7 @@ export interface CreateSiteInput {
   name: string;
   countryCode: string;
   timezone: string;
+  organizationId?: string | undefined;
 }
 
 export interface CreateGatewayInput {
@@ -17,9 +23,92 @@ export interface CreateGatewayInput {
   serial?: string | undefined;
 }
 
+export interface CreateOrganizationInput {
+  code: string;
+  name: string;
+  legalName?: string | undefined;
+}
+
+export interface CreatePolicyInput {
+  name: string;
+  downloadKbps?: number | undefined;
+  uploadKbps?: number | undefined;
+  sessionTimeoutHours?: number | undefined;
+  quotaGb?: number | undefined;
+  maxConcurrentDevices?: number | undefined;
+}
+
+export interface CreatePortalInput {
+  name: string;
+  headline?: string | undefined;
+  body?: string | undefined;
+}
+
+export interface CreateVoucherBatchInput {
+  siteId: string;
+  policyVersionId: string;
+  name: string;
+  quantity: number;
+  expiresAt: string;
+  defaultMaxUses?: number | undefined;
+  defaultMaxDevices?: number | undefined;
+}
+
 @Injectable()
 export class AdminOperationsService {
-  constructor(private readonly database: DatabaseService) {}
+  private readonly voucherKey: Buffer;
+
+  constructor(
+    private readonly database: DatabaseService,
+    config: ConfigService<AppEnvironment, true>,
+  ) {
+    this.voucherKey = Buffer.from(
+      config.getOrThrow<string>("VOUCHER_HMAC_MASTER_KEY_BASE64"),
+      "base64url",
+    );
+  }
+
+  async listOrganizations(tenantId: string): Promise<unknown[]> {
+    return this.database.withTenant(tenantId, async (transaction) => {
+      const organizations = await transaction.organization.findMany({
+        where: { tenantId, archivedAt: null },
+        orderBy: { createdAt: "desc" },
+        include: { sites: { where: { archivedAt: null }, select: { id: true } } },
+      });
+      return organizations.map((organization) => ({
+        id: organization.id,
+        code: organization.code,
+        name: organization.name,
+        legalName: organization.legalName,
+        status: organization.status,
+        sitesTotal: organization.sites.length,
+        createdAt: organization.createdAt.toISOString(),
+      }));
+    });
+  }
+
+  async createOrganization(tenantId: string, input: CreateOrganizationInput): Promise<unknown> {
+    return this.database.withTenant(tenantId, async (transaction) => {
+      const organization = await transaction.organization.create({
+        data: {
+          tenantId,
+          code: input.code,
+          name: input.name,
+          ...(input.legalName ? { legalName: input.legalName } : {}),
+          status: "active",
+        },
+      });
+      return {
+        id: organization.id,
+        code: organization.code,
+        name: organization.name,
+        legalName: organization.legalName,
+        status: organization.status,
+        sitesTotal: 0,
+        createdAt: organization.createdAt.toISOString(),
+      };
+    });
+  }
 
   async listSites(tenantId: string): Promise<unknown[]> {
     return this.database.withTenant(tenantId, async (transaction) => {
@@ -45,10 +134,14 @@ export class AdminOperationsService {
   async createSite(tenantId: string, input: CreateSiteInput): Promise<unknown> {
     return this.database.withTenant(tenantId, async (transaction) => {
       const organization =
-        (await transaction.organization.findFirst({
-          where: { tenantId, archivedAt: null },
-          orderBy: { createdAt: "asc" },
-        })) ??
+        (input.organizationId
+          ? await transaction.organization.findFirst({
+              where: { tenantId, id: input.organizationId, archivedAt: null },
+            })
+          : await transaction.organization.findFirst({
+              where: { tenantId, archivedAt: null },
+              orderBy: { createdAt: "asc" },
+            })) ??
         (await transaction.organization.create({
           data: {
             tenantId,
@@ -144,5 +237,248 @@ export class AdminOperationsService {
         createdAt: gateway.createdAt.toISOString(),
       };
     });
+  }
+
+  async listPolicies(tenantId: string): Promise<unknown[]> {
+    return this.database.withTenant(tenantId, async (transaction) => {
+      const policies = await transaction.accessPolicy.findMany({
+        where: { tenantId, archivedAt: null },
+        orderBy: { createdAt: "desc" },
+        include: { versions: { orderBy: { version: "desc" }, take: 1 } },
+      });
+      return policies.map((policy) => {
+        const version = policy.versions[0];
+        return {
+          id: policy.id,
+          name: policy.name,
+          status: policy.status,
+          versionId: version?.id ?? null,
+          version: version?.version ?? null,
+          versionStatus: version?.status ?? null,
+          downloadKbps: version?.downloadKbps ?? null,
+          uploadKbps: version?.uploadKbps ?? null,
+          sessionTimeoutSeconds: version?.sessionTimeoutSeconds ?? null,
+          quotaBytes: version?.quotaBytes?.toString() ?? null,
+          maxConcurrentDevices: version?.maxConcurrentDevices ?? null,
+          createdAt: policy.createdAt.toISOString(),
+        };
+      });
+    });
+  }
+
+  async createPolicy(tenantId: string, input: CreatePolicyInput): Promise<unknown> {
+    return this.database.withTenant(tenantId, async (transaction) => {
+      const policy = await transaction.accessPolicy.create({
+        data: { tenantId, name: input.name, status: "active" },
+      });
+      const version = await transaction.accessPolicyVersion.create({
+        data: {
+          tenantId,
+          policyId: policy.id,
+          version: 1,
+          status: "published",
+          publishedAt: new Date(),
+          sessionTimeoutSeconds: (input.sessionTimeoutHours ?? 24) * 3600,
+          ...(input.downloadKbps === undefined ? {} : { downloadKbps: input.downloadKbps }),
+          ...(input.uploadKbps === undefined ? {} : { uploadKbps: input.uploadKbps }),
+          ...(input.quotaGb === undefined
+            ? {}
+            : { quotaBytes: BigInt(input.quotaGb) * 1024n ** 3n }),
+          maxConcurrentDevices: input.maxConcurrentDevices ?? 1,
+          snapshot: {
+            createdFrom: "admin-mvp",
+            downloadKbps: input.downloadKbps ?? null,
+            uploadKbps: input.uploadKbps ?? null,
+            quotaGb: input.quotaGb ?? null,
+          },
+        },
+      });
+      return {
+        id: policy.id,
+        name: policy.name,
+        status: policy.status,
+        versionId: version.id,
+        version: version.version,
+        versionStatus: version.status,
+        downloadKbps: version.downloadKbps,
+        uploadKbps: version.uploadKbps,
+        sessionTimeoutSeconds: version.sessionTimeoutSeconds,
+        quotaBytes: version.quotaBytes?.toString() ?? null,
+        maxConcurrentDevices: version.maxConcurrentDevices,
+        createdAt: policy.createdAt.toISOString(),
+      };
+    });
+  }
+
+  async listPortals(tenantId: string): Promise<unknown[]> {
+    return this.database.withTenant(tenantId, async (transaction) => {
+      const portals = await transaction.portal.findMany({
+        where: { tenantId, archivedAt: null },
+        orderBy: { createdAt: "desc" },
+        include: {
+          versions: {
+            orderBy: { version: "desc" },
+            take: 1,
+            include: { publications: { include: { site: { select: { name: true } } } } },
+          },
+        },
+      });
+      return portals.map((portal) => {
+        const version = portal.versions[0];
+        return {
+          id: portal.id,
+          name: portal.name,
+          kind: portal.kind,
+          versionId: version?.id ?? null,
+          version: version?.version ?? null,
+          status: version?.status ?? "draft",
+          fallbackLocale: version?.fallbackLocale ?? "es",
+          siteNames: version?.publications.map((publication) => publication.site.name) ?? [],
+          createdAt: portal.createdAt.toISOString(),
+        };
+      });
+    });
+  }
+
+  async createPortal(tenantId: string, input: CreatePortalInput): Promise<unknown> {
+    return this.database.withTenant(tenantId, async (transaction) => {
+      const portal = await transaction.portal.create({
+        data: { tenantId, name: input.name, kind: "wifi" },
+      });
+      const version = await transaction.portalVersion.create({
+        data: {
+          tenantId,
+          portalId: portal.id,
+          version: 1,
+          status: "draft",
+          fallbackLocale: "es",
+          theme: { brand: "entelsat" },
+        },
+      });
+      await transaction.portalBlock.createMany({
+        data: [
+          {
+            tenantId,
+            portalVersionId: version.id,
+            kind: "hero",
+            displayOrder: 10,
+            props: {
+              headline: input.headline ?? "Bienvenido al WiFi",
+              body: input.body ?? "Acepta las condiciones para acceder a Internet.",
+            },
+          },
+          {
+            tenantId,
+            portalVersionId: version.id,
+            kind: "accept_button",
+            displayOrder: 20,
+            props: { label: "Acceder a Internet" },
+          },
+        ],
+      });
+      return {
+        id: portal.id,
+        name: portal.name,
+        kind: portal.kind,
+        versionId: version.id,
+        version: version.version,
+        status: version.status,
+        fallbackLocale: version.fallbackLocale,
+        siteNames: [],
+        createdAt: portal.createdAt.toISOString(),
+      };
+    });
+  }
+
+  async listVoucherBatches(tenantId: string): Promise<unknown[]> {
+    return this.database.withTenant(tenantId, async (transaction) => {
+      const batches = await transaction.voucherBatch.findMany({
+        where: { tenantId },
+        orderBy: { createdAt: "desc" },
+        include: {
+          site: { select: { name: true, code: true } },
+          policyVersion: { include: { policy: { select: { name: true } } } },
+          vouchers: { select: { id: true, state: true, usedCount: true, revokedAt: true } },
+        },
+      });
+      return batches.map((batch) => ({
+        id: batch.id,
+        name: batch.name,
+        siteName: batch.site.name,
+        siteCode: batch.site.code,
+        policyName: batch.policyVersion.policy.name,
+        quantity: batch.quantity,
+        available: batch.vouchers.filter(
+          (voucher) => voucher.state === "available" && !voucher.revokedAt,
+        ).length,
+        used: batch.vouchers.filter((voucher) => voucher.usedCount > 0).length,
+        expiresAt: batch.expiresAt.toISOString(),
+        createdAt: batch.createdAt.toISOString(),
+      }));
+    });
+  }
+
+  async createVoucherBatch(tenantId: string, input: CreateVoucherBatchInput): Promise<unknown> {
+    return this.database.withTenant(tenantId, async (transaction) => {
+      const site = await transaction.site.findFirst({
+        where: { tenantId, id: input.siteId, archivedAt: null },
+        select: { id: true, name: true, code: true },
+      });
+      if (!site) throw new NotFoundException("Sede no encontrada");
+      const policyVersion = await transaction.accessPolicyVersion.findFirst({
+        where: { tenantId, id: input.policyVersionId },
+        include: { policy: { select: { name: true } } },
+      });
+      if (!policyVersion) throw new NotFoundException("Política no encontrada");
+
+      const startsAt = new Date();
+      const expiresAt = new Date(input.expiresAt);
+      const batch = await transaction.voucherBatch.create({
+        data: {
+          tenantId,
+          siteId: site.id,
+          policyVersionId: policyVersion.id,
+          name: input.name,
+          quantity: input.quantity,
+          startsAt,
+          expiresAt,
+          defaultMaxUses: input.defaultMaxUses ?? 1,
+          defaultMaxDevices: input.defaultMaxDevices ?? 1,
+        },
+      });
+      const codes = Array.from({ length: input.quantity }, () => this.generateVoucherCode());
+      await transaction.voucher.createMany({
+        data: codes.map((code) => ({
+          tenantId,
+          batchId: batch.id,
+          codeHmac: Buffer.from(keyedDigest(code, this.voucherKey, "voucher.code.v1")),
+          displayHint: code.slice(-4),
+          state: "available",
+          maxUses: input.defaultMaxUses ?? 1,
+          maxDevices: input.defaultMaxDevices ?? 1,
+          expiresAt,
+        })),
+      });
+      return {
+        id: batch.id,
+        name: batch.name,
+        siteName: site.name,
+        siteCode: site.code,
+        policyName: policyVersion.policy.name,
+        quantity: batch.quantity,
+        available: batch.quantity,
+        used: 0,
+        expiresAt: batch.expiresAt.toISOString(),
+        createdAt: batch.createdAt.toISOString(),
+        oneTimeCodes: codes,
+      };
+    });
+  }
+
+  private generateVoucherCode(): string {
+    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    const raw = randomBytes(12);
+    const chars = Array.from(raw, (byte) => alphabet[byte % alphabet.length]).join("");
+    return `${chars.slice(0, 4)}-${chars.slice(4, 8)}-${chars.slice(8, 12)}`;
   }
 }

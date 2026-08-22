@@ -7,6 +7,7 @@ import { Badge, Button } from "@wifi/ui";
 
 import { PageHeader } from "@/components/page-header";
 import { TableFrame } from "@/components/table-frame";
+import { adminApi, inputClass } from "../admin-api";
 
 interface SiteView {
   id: string;
@@ -35,21 +36,6 @@ interface GatewayView {
   createdAt: string;
 }
 
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
-    ...init,
-    headers: {
-      "content-type": "application/json",
-      ...init?.headers,
-    },
-  });
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `Error HTTP ${response.status}`);
-  }
-  return (await response.json()) as T;
-}
-
 export default function SitesPage() {
   const [sites, setSites] = useState<SiteView[]>([]);
   const [gateways, setGateways] = useState<GatewayView[]>([]);
@@ -61,8 +47,8 @@ export default function SitesPage() {
   async function refresh(): Promise<void> {
     setError(null);
     const [nextSites, nextGateways] = await Promise.all([
-      api<SiteView[]>("/api/v1/admin/sites"),
-      api<GatewayView[]>("/api/v1/admin/gateways"),
+      adminApi<SiteView[]>("/api/v1/admin/sites"),
+      adminApi<GatewayView[]>("/api/v1/admin/gateways"),
     ]);
     setSites(nextSites);
     setGateways(nextGateways);
@@ -84,7 +70,7 @@ export default function SitesPage() {
     setError(null);
     const data = new FormData(event.currentTarget);
     try {
-      await api<SiteView>("/api/v1/admin/sites", {
+      await adminApi<SiteView>("/api/v1/admin/sites", {
         method: "POST",
         body: JSON.stringify({
           name: data.get("name"),
@@ -108,7 +94,7 @@ export default function SitesPage() {
     setError(null);
     const data = new FormData(event.currentTarget);
     try {
-      await api<GatewayView>("/api/v1/admin/gateways", {
+      await adminApi<GatewayView>("/api/v1/admin/gateways", {
         method: "POST",
         body: JSON.stringify({
           siteId: data.get("siteId"),
@@ -152,10 +138,10 @@ export default function SitesPage() {
         >
           <h2 className="text-sm font-extrabold text-slate-900">Crear sede</h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <input name="name" required placeholder="Nombre de la sede" className="input" />
-            <input name="code" required placeholder="Código, ej. HOTEL-01" className="input" />
-            <input name="countryCode" defaultValue="ES" maxLength={2} className="input" />
-            <input name="timezone" defaultValue="Europe/Madrid" className="input" />
+            <input name="name" required placeholder="Nombre de la sede" className={inputClass} />
+            <input name="code" required placeholder="Código, ej. HOTEL-01" className={inputClass} />
+            <input name="countryCode" defaultValue="ES" maxLength={2} className={inputClass} />
+            <input name="timezone" defaultValue="Europe/Madrid" className={inputClass} />
           </div>
           <Button type="submit" className="mt-4" disabled={savingSite}>
             <Plus className="size-4" /> {savingSite ? "Creando…" : "Nueva sede"}
@@ -168,7 +154,7 @@ export default function SitesPage() {
         >
           <h2 className="text-sm font-extrabold text-slate-900">Registrar gateway</h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <select name="siteId" required defaultValue={firstSiteId} className="input">
+            <select name="siteId" required defaultValue={firstSiteId} className={inputClass}>
               <option value="" disabled>
                 Selecciona sede
               </option>
@@ -178,15 +164,15 @@ export default function SitesPage() {
                 </option>
               ))}
             </select>
-            <input name="name" required placeholder="Nombre del gateway" className="input" />
+            <input name="name" required placeholder="Nombre del gateway" className={inputClass} />
             <input
               name="nasIdentifier"
               required
               placeholder="NAS Identifier único"
-              className="input"
+              className={inputClass}
             />
-            <input name="model" placeholder="Modelo, ej. RB5009" className="input" />
-            <input name="serial" placeholder="Serie" className="input sm:col-span-2" />
+            <input name="model" placeholder="Modelo, ej. RB5009" className={inputClass} />
+            <input name="serial" placeholder="Serie" className={`${inputClass} sm:col-span-2`} />
           </div>
           <Button type="submit" className="mt-4" disabled={savingGateway || sites.length === 0}>
             <Router className="size-4" /> {savingGateway ? "Registrando…" : "Registrar gateway"}
