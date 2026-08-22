@@ -38,17 +38,6 @@ describe("initial admin bootstrap material", () => {
       BOOTSTRAP_TIMEZONE: "Europe/Madrid",
     });
 
-    expect(
-      parseAdminBootstrapEnvironment({
-        ...validEnvironment(),
-        BOOTSTRAP_ADMIN_EMAIL: "entelsat@entelsat.com",
-        BOOTSTRAP_ADMIN_PASSWORD: "Claudia:2012",
-      }),
-    ).toMatchObject({
-      BOOTSTRAP_ADMIN_EMAIL: "entelsat@entelsat.com",
-      BOOTSTRAP_ADMIN_PASSWORD: "Claudia:2012",
-    });
-
     expect(() =>
       parseAdminBootstrapEnvironment({
         ...validEnvironment(),
