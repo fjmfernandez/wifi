@@ -45,7 +45,10 @@ SSTP_PUBLIC_HOST=62.84.190.174
 SSTP_PORT=4443
 SSTP_LOCAL_IP=10.255.0.1
 SSTP_POOL=10.255.0.2-254
+SSTP_CLIENT_IP_RANGE=0.0.0.0/0
 ```
+
+Cuando tengas IP pública fija del RouterBOARD, puedes cerrar `SSTP_CLIENT_IP_RANGE`, por ejemplo `62.175.165.90/32`.
 
 El contenedor crea `/dev/ppp` al arrancar y se ejecuta en modo privilegiado porque PPP/SSTP necesita acceso de red de bajo nivel. Aun así, si el kernel del VPS no tiene PPP cargado, ejecútalo una vez en el host:
 

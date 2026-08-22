@@ -15,6 +15,7 @@ sstp_port="${SSTP_PORT:-4443}"
 sstp_public_host="${SSTP_PUBLIC_HOST:-62.84.190.174}"
 sstp_local_ip="${SSTP_LOCAL_IP:-10.255.0.1}"
 sstp_pool="${SSTP_POOL:-10.255.0.2-254}"
+sstp_client_ip_range="${SSTP_CLIENT_IP_RANGE:-0.0.0.0/0}"
 sstp_dns1="${SSTP_DNS1:-1.1.1.1}"
 sstp_dns2="${SSTP_DNS2:-8.8.8.8}"
 radius_host="${RADIUS_HOST:-radius}"
@@ -166,6 +167,9 @@ http-error=allow
 gw-ip-address=$sstp_local_ip
 $sstp_pool,sstp
 
+[client-ip-range]
+$sstp_client_ip_range
+
 [chap-secrets]
 gw-ip-address=$sstp_local_ip
 chap-secrets=$chap_file
@@ -182,4 +186,4 @@ copy=1
 level=3
 EOF
 
-exec accel-pppd -d -c "$config_file" -p "$pid_file"
+exec accel-pppd -c "$config_file" -p "$pid_file"
