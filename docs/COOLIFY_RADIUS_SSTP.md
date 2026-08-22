@@ -47,7 +47,7 @@ SSTP_LOCAL_IP=10.255.0.1
 SSTP_POOL=10.255.0.2-254
 ```
 
-En el VPS debe existir `/dev/ppp`. Si no existe:
+El contenedor crea `/dev/ppp` al arrancar y se ejecuta en modo privilegiado porque PPP/SSTP necesita acceso de red de bajo nivel. Aun así, si el kernel del VPS no tiene PPP cargado, ejecútalo una vez en el host:
 
 ```sh
 modprobe ppp_generic

@@ -169,10 +169,9 @@ services:
       RADIUS_HOST: radius
     ports:
       - "${SSTP_PORT:-4443}:4443/tcp"
+    privileged: true
     cap_add:
       - NET_ADMIN
-    devices:
-      - /dev/ppp:/dev/ppp
     depends_on:
       radius:
         condition: service_healthy

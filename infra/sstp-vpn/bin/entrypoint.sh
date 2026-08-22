@@ -60,6 +60,12 @@ validate_ipv4 "SSTP_DNS2" "$sstp_dns2"
 
 install -d -m 0750 "$runtime_dir"
 
+if [ ! -c /dev/ppp ]; then
+  rm -f /dev/ppp
+  mknod /dev/ppp c 108 0 || die "could not create /dev/ppp; run the container as privileged or map /dev/ppp"
+  chmod 0600 /dev/ppp
+fi
+
 if [ -n "${SSTP_CERT_PEM_BASE64:-}" ] && [ -n "${SSTP_KEY_PEM_BASE64:-}" ]; then
   printf '%s' "$SSTP_CERT_PEM_BASE64" | base64 -d > "$cert_file"
   printf '%s' "$SSTP_KEY_PEM_BASE64" | base64 -d > "$key_file"
