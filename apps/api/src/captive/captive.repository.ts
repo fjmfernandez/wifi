@@ -20,6 +20,11 @@ export interface CaptiveGatewayContext {
   availableMethods: readonly LoginMethod[];
 }
 
+export interface CaptiveGatewaySeen {
+  gatewayId: string;
+  nasIdentifier: string;
+}
+
 export interface PendingCaptiveAttempt {
   stateDigest: Buffer;
   nonceDigest: Buffer;
@@ -34,6 +39,7 @@ export interface PendingCaptiveAttempt {
 
 export interface CaptiveRepository {
   resolveGateway(locatorDigest: Buffer): Promise<CaptiveGatewayContext | undefined>;
+  markGatewaySeen(locatorDigest: Buffer): Promise<CaptiveGatewaySeen | undefined>;
   createAttempt(attempt: PendingCaptiveAttempt): Promise<void>;
   getAttempt(stateDigest: Buffer): Promise<PendingCaptiveAttempt | undefined>;
   getLegalDocument(

@@ -1,7 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Copy, KeyRound, Link2, RefreshCcw, Router, ShieldCheck } from "lucide-react";
+import {
+  CheckCircle2,
+  Copy,
+  KeyRound,
+  Link2,
+  RefreshCcw,
+  Router,
+  ShieldCheck,
+  XCircle,
+} from "lucide-react";
 
 import { Button, Card } from "@wifi/ui";
 
@@ -16,6 +25,7 @@ interface GatewayView {
   model: string | null;
   nasIdentifier: string;
   status: string;
+  lastSeenAt: string | null;
 }
 
 interface LinkMaterial {
@@ -30,6 +40,15 @@ interface LinkMaterial {
   radiusClientLine: string;
   allowedLoginOrigins: string[];
 }
+
+interface SavedLinkMaterial {
+  material: LinkMaterial;
+  formValues: Record<string, string>;
+  generatedAt: string;
+}
+
+const linkStoragePrefix = "entelsat.routerboard.link.";
+const linkedFreshnessMs = 10 * 60 * 1000;
 
 function routerQuote(value: string): string {
   return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
@@ -105,12 +124,38 @@ function buildRouterScript({
       "captive.wifi.entelsat.com",
     )} comment=${routerQuote("ENTELSAT captive")}`,
     `/tool fetch url=${routerQuote(
-      "https://captive.wifi.entelsat.com",
-    )} mode=https output=none check-certificate=yes`,
+      `https://captive.wifi.entelsat.com/api/v1/captive/gateway/ping?gatewayLocator=${material.gatewayLocator}`,
+    )} mode=https output=user check-certificate=no`,
     ':log warning "ENTELSAT: sube el login.html generado a Files/hotspot/login.html"',
     "/radius print detail",
     `/ping ${radiusServerIp} count=3`,
   ].join("\n");
+}
+
+function isGatewayLinked(gateway: GatewayView | null): boolean {
+  if (!gateway) return false;
+  if (gateway.status === "online") return true;
+  if (!gateway.lastSeenAt) return false;
+  return Date.now() - new Date(gateway.lastSeenAt).getTime() <= linkedFreshnessMs;
+}
+
+function linkStatusLabel(gateway: GatewayView | null): string {
+  if (!gateway) return "Sin gateway seleccionado";
+  if (isGatewayLinked(gateway)) return "Vinculado";
+  if (gateway.lastSeenAt)
+    return `No vinculado ahora · última señal ${formatDateTime(gateway.lastSeenAt)}`;
+  return "No vinculado";
+}
+
+function formatDateTime(value: string): string {
+  return new Intl.DateTimeFormat("es-ES", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+function storageKey(gatewayId: string): string {
+  return `${linkStoragePrefix}${gatewayId}`;
 }
 
 export default function RouterBoardLinkPage() {
@@ -139,6 +184,30 @@ export default function RouterBoardLinkPage() {
     () => gateways.find((gateway) => gateway.id === selectedGatewayId) ?? null,
     [gateways, selectedGatewayId],
   );
+  const selectedLinked = isGatewayLinked(selectedGateway);
+
+  useEffect(() => {
+    if (!selectedGatewayId) {
+      setMaterial(null);
+      setFormValues({});
+      return;
+    }
+    const saved = window.localStorage.getItem(storageKey(selectedGatewayId));
+    if (!saved) {
+      setMaterial(null);
+      setFormValues({});
+      return;
+    }
+    try {
+      const parsed = JSON.parse(saved) as SavedLinkMaterial;
+      setMaterial(parsed.material);
+      setFormValues(parsed.formValues);
+    } catch {
+      window.localStorage.removeItem(storageKey(selectedGatewayId));
+      setMaterial(null);
+      setFormValues({});
+    }
+  }, [selectedGatewayId]);
 
   const routerScript =
     selectedGateway && material
@@ -173,7 +242,15 @@ export default function RouterBoardLinkPage() {
       );
       setFormValues(values);
       setMaterial(nextMaterial);
-      setMessage("Material generado. Copia la variable de Coolify y el script MikroTik.");
+      window.localStorage.setItem(
+        storageKey(selectedGateway.id),
+        JSON.stringify({
+          material: nextMaterial,
+          formValues: values,
+          generatedAt: new Date().toISOString(),
+        } satisfies SavedLinkMaterial),
+      );
+      setMessage("Vinculación creada. Copia las variables de Coolify y pega el script en el RB.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "No se pudo generar la vinculación");
     } finally {
@@ -186,14 +263,21 @@ export default function RouterBoardLinkPage() {
     setMessage(`${label} copiado`);
   }
 
+  async function checkLink(): Promise<void> {
+    await refresh();
+    setMessage(
+      "Estado actualizado. Si el script ya se ejecutó en el RB, debería aparecer en verde.",
+    );
+  }
+
   return (
     <>
       <PageHeader
         title="Vincular RouterBOARD"
         description="Genera el material para conectar un MikroTik por SSTP Client y usar FreeRADIUS/portal cautivo."
         actions={
-          <Button variant="secondary" onClick={() => void refresh()}>
-            <RefreshCcw className="size-4" /> Actualizar gateways
+          <Button variant="secondary" onClick={() => void checkLink()}>
+            <RefreshCcw className="size-4" /> Comprobar vinculación
           </Button>
         }
       />
@@ -217,6 +301,26 @@ export default function RouterBoardLinkPage() {
           <h2 className="flex items-center gap-2 text-sm font-extrabold text-slate-900">
             <Router className="size-4 text-brand-700" /> Datos de vinculación
           </h2>
+          <div
+            className={`mt-3 flex items-start gap-3 rounded-2xl border px-4 py-3 ${
+              selectedLinked
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                : "border-rose-200 bg-rose-50 text-rose-800"
+            }`}
+          >
+            {selectedLinked ? (
+              <CheckCircle2 className="mt-0.5 size-5 shrink-0" />
+            ) : (
+              <XCircle className="mt-0.5 size-5 shrink-0" />
+            )}
+            <div>
+              <p className="text-sm font-extrabold">{linkStatusLabel(selectedGateway)}</p>
+              <p className="mt-1 text-xs font-semibold opacity-80">
+                El estado pasa a verde cuando el RB ejecuta el script y llama al SaaS, o cuando el
+                portal cautivo recibe tráfico de ese gateway.
+              </p>
+            </div>
+          </div>
           <div className="mt-4 grid gap-3">
             <label className="grid gap-1 text-xs font-bold text-slate-600">
               Gateway SaaS
@@ -229,7 +333,8 @@ export default function RouterBoardLinkPage() {
               >
                 {gateways.map((gateway) => (
                   <option key={gateway.id} value={gateway.id}>
-                    {gateway.name} · {gateway.nasIdentifier} · {gateway.siteName}
+                    {isGatewayLinked(gateway) ? "🟢" : "🔴"} {gateway.name} ·{" "}
+                    {gateway.nasIdentifier} · {gateway.siteName}
                   </option>
                 ))}
               </select>
@@ -303,11 +408,13 @@ export default function RouterBoardLinkPage() {
             <ShieldCheck className="size-4 text-emerald-700" /> Orden de aplicación
           </h2>
           <ol className="mt-3 list-decimal space-y-2 pl-5 text-xs leading-5 text-slate-600">
-            <li>Copia `SSTP_USERS_TSV` en Coolify para crear el usuario VPN.</li>
             <li>Genera el material en esta pantalla.</li>
-            <li>En Coolify, pon `RADIUS_CLIENTS_TSV` con la línea generada.</li>
+            <li>Copia `SSTP_USERS_TSV` y `RADIUS_CLIENTS_TSV` en Coolify.</li>
             <li>Redepliega para que SSTP y RADIUS carguen esos secretos.</li>
-            <li>Pega el script en Terminal de MikroTik.</li>
+            <li>Pega el script generado en Terminal de MikroTik.</li>
+            <li>
+              Pulsa “Comprobar vinculación”. Si el RB llegó al SaaS, verás el estado en verde.
+            </li>
             <li>Sube el `login.html` generado a Files/hotspot/login.html.</li>
           </ol>
           <p className="mt-4 rounded-xl bg-amber-50 p-3 text-xs font-semibold leading-5 text-amber-800">
@@ -319,6 +426,28 @@ export default function RouterBoardLinkPage() {
 
       {material ? (
         <div className="mt-4 grid gap-4 xl:grid-cols-2">
+          <Card
+            className={`p-4 xl:col-span-2 ${
+              selectedLinked ? "border-emerald-200 bg-emerald-50" : "border-rose-200 bg-rose-50"
+            }`}
+          >
+            <h2
+              className={`flex items-center gap-2 text-sm font-extrabold ${
+                selectedLinked ? "text-emerald-900" : "text-rose-900"
+              }`}
+            >
+              {selectedLinked ? (
+                <CheckCircle2 className="size-4" />
+              ) : (
+                <XCircle className="size-4" />
+              )}
+              Estado de esta vinculación: {linkStatusLabel(selectedGateway)}
+            </h2>
+            <p className="mt-2 text-xs font-semibold leading-5 text-slate-700">
+              El script incluye una verificación automática contra el SaaS. Después de pegarlo en
+              MikroTik, espera unos segundos y pulsa “Comprobar vinculación”.
+            </p>
+          </Card>
           <OutputBlock
             title="Variable Coolify SSTP_USERS_TSV"
             value={sstpUsersLine}

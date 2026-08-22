@@ -38,6 +38,13 @@ export interface CaptivePublicContext {
   languages: readonly ("es" | "en")[];
 }
 
+export interface CaptiveGatewayPingResult {
+  status: "linked";
+  gatewayId: string;
+  nasIdentifier: string;
+  seenAt: string;
+}
+
 function normalizedOrigin(value: string): string {
   const url = new URL(value);
   return url.origin.toLowerCase();
@@ -106,6 +113,20 @@ export class CaptiveService {
     const portalUrl = new URL("/", this.portalOrigin);
     portalUrl.searchParams.set("state", state);
     return { portalUrl: portalUrl.toString(), expiresAt: expiresAt.toISOString() };
+  }
+
+  async gatewayPing(rawRequest: unknown): Promise<CaptiveGatewayPingResult> {
+    const request = z.object({ gatewayLocator: z.string().min(16).max(256) }).parse(rawRequest);
+    const gateway = await this.repository.markGatewaySeen(
+      keyedDigest(request.gatewayLocator, this.identifierKey, "captive.gateway-locator.v1"),
+    );
+    if (!gateway) throw new NotFoundException("Gateway cautivo no reconocido");
+    return {
+      status: "linked",
+      gatewayId: gateway.gatewayId,
+      nasIdentifier: gateway.nasIdentifier,
+      seenAt: new Date().toISOString(),
+    };
   }
 
   async context(rawState: unknown): Promise<CaptivePublicContext> {

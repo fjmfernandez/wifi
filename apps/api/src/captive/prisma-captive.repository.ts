@@ -84,6 +84,21 @@ export class PrismaCaptiveRepository implements CaptiveRepository {
     );
   }
 
+  async markGatewaySeen(
+    locatorDigest: Buffer,
+  ): Promise<{ gatewayId: string; nasIdentifier: string } | undefined> {
+    const route = await this.database.resolveCaptiveLocator(locatorDigest);
+    if (!route) return undefined;
+    return this.database.withTenant(route.tenantId, async (transaction) => {
+      const gateway = await transaction.gateway.update({
+        where: { tenantId_id: { tenantId: route.tenantId, id: route.gatewayId } },
+        data: { lastSeenAt: new Date(), status: "online" },
+        select: { id: true, nasIdentifier: true },
+      });
+      return { gatewayId: gateway.id, nasIdentifier: gateway.nasIdentifier };
+    });
+  }
+
   async createAttempt(attempt: PendingCaptiveAttempt): Promise<void> {
     if (!attempt.normalizedMac) throw new Error("CAPTIVE_MAC_MISSING");
     const normalizedMac = attempt.normalizedMac;

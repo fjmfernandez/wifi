@@ -7,6 +7,7 @@ import type {
 import { constantTimeEqual, keyedDigest } from "@wifi/security";
 
 import type {
+  CaptiveGatewaySeen,
   CaptiveGatewayContext,
   CaptiveRepository,
   PendingCaptiveAttempt,
@@ -49,6 +50,12 @@ export class DemoCaptiveRepository implements CaptiveRepository {
       allowedLoginOrigins: ["https://hotspot.local", "http://hotspot.local"],
       availableMethods: ["click", "email", "voucher"],
     };
+  }
+
+  async markGatewaySeen(locatorDigest: Buffer): Promise<CaptiveGatewaySeen | undefined> {
+    const gateway = await this.resolveGateway(locatorDigest);
+    if (!gateway) return undefined;
+    return { gatewayId: gateway.gatewayId, nasIdentifier: gateway.nasIdentifier };
   }
 
   async createAttempt(attempt: PendingCaptiveAttempt): Promise<void> {

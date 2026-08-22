@@ -13,6 +13,18 @@ export class CaptiveController {
     await response.status(303).header("location", result.portalUrl).send();
   }
 
+  @Post("gateway/ping")
+  @Header("Cache-Control", "no-store")
+  gatewayPing(@Body() body: unknown): Promise<unknown> {
+    return this.captive.gatewayPing(body);
+  }
+
+  @Get("gateway/ping")
+  @Header("Cache-Control", "no-store")
+  gatewayPingGet(@Query("gatewayLocator") gatewayLocator: unknown): Promise<unknown> {
+    return this.captive.gatewayPing({ gatewayLocator });
+  }
+
   @Get("context")
   @Header("Cache-Control", "no-store")
   context(@Query("state") state: unknown): Promise<unknown> {
