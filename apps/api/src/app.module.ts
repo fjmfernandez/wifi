@@ -1,6 +1,7 @@
 import { Module, type MiddlewareConsumer, type NestModule } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { LoggerModule } from "nestjs-pino";
+import { AdminOperationsModule } from "./admin/admin-operations.module.js";
 import { AdminAuthModule } from "./auth/admin-auth.module.js";
 import { CaptiveModule } from "./captive/captive.module.js";
 import { RequestContextMiddleware } from "./common/request-context.js";
@@ -37,6 +38,7 @@ import { InfrastructureModule } from "./infrastructure/infrastructure.module.js"
       },
     }),
     AdminAuthModule,
+    AdminOperationsModule,
     CaptiveModule,
     HealthModule,
     InfrastructureModule,
