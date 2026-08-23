@@ -13,11 +13,13 @@ export function LoginForm() {
   const [requiresMfa, setRequiresMfa] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
+  const [help, setHelp] = useState<string>();
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPending(true);
     setError(undefined);
+    setHelp(undefined);
 
     const values = new FormData(event.currentTarget);
     if (process.env.NEXT_PUBLIC_DEMO_MODE !== "true") {
@@ -34,6 +36,7 @@ export function LoginForm() {
 
       if (response?.status === 202) {
         setRequiresMfa(true);
+        setHelp("Contraseña correcta. Introduce ahora el código de tu aplicación autenticadora.");
         setPending(false);
         return;
       }
@@ -117,10 +120,23 @@ export function LoginForm() {
           />
           Recordar este equipo
         </label>
-        <button type="button" className="font-semibold text-brand-700 hover:text-brand-800">
+        <button
+          type="button"
+          onClick={() =>
+            setHelp(
+              "El reset automático aún no está activado. Pide a soporte que ejecute el reset de superadmin; te entregará una nueva URI/QR de autenticador.",
+            )
+          }
+          className="font-semibold text-brand-700 hover:text-brand-800"
+        >
           ¿Has olvidado la contraseña?
         </button>
       </div>
+      {help ? (
+        <p className="rounded-xl bg-brand-50 px-3.5 py-3 text-sm font-medium leading-6 text-brand-900">
+          {help}
+        </p>
+      ) : null}
       {error ? (
         <p
           role="alert"
