@@ -26,7 +26,8 @@ ENV NODE_ENV=production
 COPY packages/database packages/database
 COPY infra/docker/bin/migrate-database.sh /usr/local/bin/migrate-database
 RUN sed -i 's/\r$//' /usr/local/bin/migrate-database \
-    && chmod 0755 /usr/local/bin/migrate-database
+    && chmod 0755 /usr/local/bin/migrate-database \
+    && chown -R node:node /workspace
 
 USER node
 ENTRYPOINT ["/usr/local/bin/migrate-database"]
