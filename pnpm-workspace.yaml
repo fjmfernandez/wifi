@@ -37,7 +37,3 @@ verifyStoreIntegrity: true
 minimumReleaseAgeExclude:
   - bullmq@6.1.2
   - deepmerge-ts@8.0.2
-
-catalog:
-  '@types/qrcode': 1.5.6
-  qrcode: 1.5.4
