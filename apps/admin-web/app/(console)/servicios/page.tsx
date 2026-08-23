@@ -15,6 +15,7 @@ import {
 
 import { Badge, Button, Card } from "@wifi/ui";
 
+import { EditDialog } from "@/components/edit-dialog";
 import { PageHeader } from "@/components/page-header";
 import { adminApi, inputClass } from "../admin-api";
 
@@ -46,7 +47,9 @@ function gb(bytes: string | null): string {
 export default function ServicesPage() {
   const [policies, setPolicies] = useState<PolicyView[]>([]);
   const [saving, setSaving] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editingPolicy, setEditingPolicy] = useState<PolicyView | null>(null);
 
   async function refresh(): Promise<void> {
     setError(null);
@@ -85,39 +88,32 @@ export default function ServicesPage() {
     }
   }
 
-  async function editPolicy(policy: PolicyView): Promise<void> {
-    const name = window.prompt("Nombre de la política", policy.name);
-    if (!name) return;
-    const downloadMbps = window.prompt(
-      "Bajada Mbps",
-      policy.downloadKbps ? String(Math.round(policy.downloadKbps / 1000)) : "",
-    );
-    const uploadMbps = window.prompt(
-      "Subida Mbps",
-      policy.uploadKbps ? String(Math.round(policy.uploadKbps / 1000)) : "",
-    );
-    const hours = window.prompt(
-      "Horas de sesión",
-      String(Math.round((policy.sessionTimeoutSeconds ?? 86_400) / 3600)),
-    );
-    const devices = window.prompt(
-      "Dispositivos simultáneos",
-      `${policy.maxConcurrentDevices ?? 1}`,
-    );
+  async function submitEditPolicy(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!editingPolicy) return;
+    setSavingEdit(true);
+    setError(null);
+    const data = new FormData(event.currentTarget);
+    const downloadMbps = String(data.get("downloadMbps") ?? "");
+    const uploadMbps = String(data.get("uploadMbps") ?? "");
     try {
-      await adminApi<PolicyView>(`/api/v1/admin/policies/${policy.id}`, {
+      await adminApi<PolicyView>(`/api/v1/admin/policies/${editingPolicy.id}`, {
         method: "PATCH",
         body: JSON.stringify({
-          name,
+          name: data.get("name"),
           downloadKbps: downloadMbps ? Number(downloadMbps) * 1000 : undefined,
           uploadKbps: uploadMbps ? Number(uploadMbps) * 1000 : undefined,
-          sessionTimeoutHours: hours || undefined,
-          maxConcurrentDevices: devices || undefined,
+          sessionTimeoutHours: data.get("sessionTimeoutHours") || undefined,
+          quotaGb: data.get("quotaGb") || undefined,
+          maxConcurrentDevices: data.get("maxConcurrentDevices") || undefined,
         }),
       });
+      setEditingPolicy(null);
       await refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "No se pudo editar la política");
+    } finally {
+      setSavingEdit(false);
     }
   }
 
@@ -220,7 +216,7 @@ export default function ServicesPage() {
                 variant="secondary"
                 size="sm"
                 className="mt-4"
-                onClick={() => void editPolicy(policy)}
+                onClick={() => setEditingPolicy(policy)}
               >
                 <Pencil className="size-3.5" /> Editar y publicar v{(policy.version ?? 1) + 1}
               </Button>
@@ -228,6 +224,95 @@ export default function ServicesPage() {
           </Card>
         ))}
       </div>
+
+      <EditDialog
+        open={editingPolicy !== null}
+        title="Editar servicio / política"
+        description="Publica una nueva versión con todos los límites actualizados."
+        saving={savingEdit}
+        onClose={() => setEditingPolicy(null)}
+        onSubmit={() =>
+          (document.getElementById("edit-policy-form") as HTMLFormElement | null)?.requestSubmit()
+        }
+      >
+        {editingPolicy ? (
+          <form
+            id="edit-policy-form"
+            onSubmit={(event) => void submitEditPolicy(event)}
+            className="grid gap-3 sm:grid-cols-2"
+          >
+            <label className="grid gap-1.5 text-xs font-bold text-slate-700 sm:col-span-2">
+              Nombre
+              <input
+                name="name"
+                required
+                defaultValue={editingPolicy.name}
+                className={inputClass}
+              />
+            </label>
+            <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+              Bajada Mbps
+              <input
+                name="downloadMbps"
+                type="number"
+                min={0}
+                defaultValue={
+                  editingPolicy.downloadKbps
+                    ? Math.round(editingPolicy.downloadKbps / 1000)
+                    : undefined
+                }
+                className={inputClass}
+              />
+            </label>
+            <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+              Subida Mbps
+              <input
+                name="uploadMbps"
+                type="number"
+                min={0}
+                defaultValue={
+                  editingPolicy.uploadKbps ? Math.round(editingPolicy.uploadKbps / 1000) : undefined
+                }
+                className={inputClass}
+              />
+            </label>
+            <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+              Horas de sesión
+              <input
+                name="sessionTimeoutHours"
+                type="number"
+                min={1}
+                defaultValue={Math.round((editingPolicy.sessionTimeoutSeconds ?? 86_400) / 3600)}
+                className={inputClass}
+              />
+            </label>
+            <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+              Cuota GB
+              <input
+                name="quotaGb"
+                type="number"
+                min={0}
+                defaultValue={
+                  editingPolicy.quotaBytes
+                    ? Math.round(Number(editingPolicy.quotaBytes) / 1024 ** 3)
+                    : undefined
+                }
+                className={inputClass}
+              />
+            </label>
+            <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+              Dispositivos simultáneos
+              <input
+                name="maxConcurrentDevices"
+                type="number"
+                min={1}
+                defaultValue={editingPolicy.maxConcurrentDevices ?? 1}
+                className={inputClass}
+              />
+            </label>
+          </form>
+        ) : null}
+      </EditDialog>
     </>
   );
 }

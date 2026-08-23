@@ -16,6 +16,7 @@ import {
 
 import { Badge, Button, Card } from "@wifi/ui";
 
+import { EditDialog } from "@/components/edit-dialog";
 import { PageHeader } from "@/components/page-header";
 import { adminApi, inputClass } from "../admin-api";
 
@@ -38,7 +39,9 @@ interface PortalView {
 export default function PortalsPage() {
   const [portals, setPortals] = useState<PortalView[]>([]);
   const [saving, setSaving] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editingPortal, setEditingPortal] = useState<PortalView | null>(null);
 
   async function refresh(): Promise<void> {
     setError(null);
@@ -76,30 +79,29 @@ export default function PortalsPage() {
     }
   }
 
-  async function editPortal(portal: PortalView): Promise<void> {
-    const name = window.prompt("Nombre del portal", portal.name);
-    if (!name) return;
-    const headline = window.prompt("Título del portal", "Bienvenido al WiFi");
-    const body = window.prompt(
-      "Texto del portal",
-      portal.body ?? "Acepta las condiciones para acceder a Internet.",
-    );
-    const logoUrl = window.prompt("URL del logo público https://", portal.logoUrl ?? "");
-    const primaryColor = window.prompt("Color principal HEX", portal.primaryColor ?? "#0d9488");
+  async function submitEditPortal(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!editingPortal) return;
+    setSavingEdit(true);
+    setError(null);
+    const data = new FormData(event.currentTarget);
     try {
-      await adminApi<PortalView>(`/api/v1/admin/portals/${portal.id}`, {
+      await adminApi<PortalView>(`/api/v1/admin/portals/${editingPortal.id}`, {
         method: "PATCH",
         body: JSON.stringify({
-          name,
-          headline: headline || undefined,
-          body: body || undefined,
-          logoUrl: logoUrl || undefined,
-          primaryColor: primaryColor || undefined,
+          name: data.get("name"),
+          headline: data.get("headline") || undefined,
+          body: data.get("body") || undefined,
+          logoUrl: data.get("logoUrl") || undefined,
+          primaryColor: data.get("primaryColor") || undefined,
         }),
       });
+      setEditingPortal(null);
       await refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "No se pudo editar el portal");
+    } finally {
+      setSavingEdit(false);
     }
   }
 
@@ -227,7 +229,7 @@ export default function PortalsPage() {
                 <span className="rounded-lg bg-slate-100 px-2 py-1">{portal.kind}</span>
               </div>
               <div className="mt-5 flex gap-2 border-t border-slate-100 pt-4">
-                <Button variant="secondary" size="sm" onClick={() => void editPortal(portal)}>
+                <Button variant="secondary" size="sm" onClick={() => setEditingPortal(portal)}>
                   <Pencil className="size-3.5" /> Editar
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => void archivePortal(portal)}>
@@ -254,6 +256,73 @@ export default function PortalsPage() {
           </div>
         ) : null}
       </div>
+
+      <EditDialog
+        open={editingPortal !== null}
+        title="Editar portal cautivo"
+        description="Personaliza textos, logo y color del portal en una sola ventana."
+        saving={savingEdit}
+        onClose={() => setEditingPortal(null)}
+        onSubmit={() =>
+          (document.getElementById("edit-portal-form") as HTMLFormElement | null)?.requestSubmit()
+        }
+      >
+        {editingPortal ? (
+          <form
+            id="edit-portal-form"
+            onSubmit={(event) => void submitEditPortal(event)}
+            className="grid gap-3"
+          >
+            <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+              Nombre del portal
+              <input
+                name="name"
+                required
+                defaultValue={editingPortal.name}
+                className={inputClass}
+              />
+            </label>
+            <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+              Título
+              <input
+                name="headline"
+                defaultValue={editingPortal.headline ?? "Bienvenido al WiFi"}
+                className={inputClass}
+              />
+            </label>
+            <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+              Texto
+              <textarea
+                name="body"
+                defaultValue={
+                  editingPortal.body ?? "Acepta las condiciones para acceder a Internet."
+                }
+                className={`${inputClass} min-h-24 py-3`}
+              />
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+                URL pública del logo
+                <input
+                  name="logoUrl"
+                  type="url"
+                  defaultValue={editingPortal.logoUrl ?? ""}
+                  className={inputClass}
+                />
+              </label>
+              <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+                Color principal
+                <input
+                  name="primaryColor"
+                  pattern="^#[0-9a-fA-F]{6}$"
+                  defaultValue={editingPortal.primaryColor ?? "#0d9488"}
+                  className={inputClass}
+                />
+              </label>
+            </div>
+          </form>
+        ) : null}
+      </EditDialog>
     </>
   );
 }

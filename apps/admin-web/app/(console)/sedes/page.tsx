@@ -5,6 +5,7 @@ import { Archive, Download, MapPin, Pencil, Plus, Router, UsersRound } from "luc
 
 import { Badge, Button } from "@wifi/ui";
 
+import { EditDialog } from "@/components/edit-dialog";
 import { PageHeader } from "@/components/page-header";
 import { TableFrame } from "@/components/table-frame";
 import { adminApi, inputClass } from "../admin-api";
@@ -42,7 +43,10 @@ export default function SitesPage() {
   const [loading, setLoading] = useState(true);
   const [savingSite, setSavingSite] = useState(false);
   const [savingGateway, setSavingGateway] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editingSite, setEditingSite] = useState<SiteView | null>(null);
+  const [editingGateway, setEditingGateway] = useState<GatewayView | null>(null);
 
   async function refresh(): Promise<void> {
     setError(null);
@@ -113,24 +117,28 @@ export default function SitesPage() {
     }
   }
 
-  async function editSite(site: SiteView): Promise<void> {
-    const name = window.prompt("Nombre de la sede", site.name);
-    if (!name) return;
-    const code = window.prompt("Código de la sede", site.code);
-    if (!code) return;
+  async function submitEditSite(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!editingSite) return;
+    setSavingEdit(true);
+    setError(null);
+    const data = new FormData(event.currentTarget);
     try {
-      await adminApi<SiteView>(`/api/v1/admin/sites/${site.id}`, {
+      await adminApi<SiteView>(`/api/v1/admin/sites/${editingSite.id}`, {
         method: "PATCH",
         body: JSON.stringify({
-          name,
-          code,
-          countryCode: site.countryCode,
-          timezone: site.timezone,
+          name: data.get("name"),
+          code: data.get("code"),
+          countryCode: data.get("countryCode") || "ES",
+          timezone: data.get("timezone") || "Europe/Madrid",
         }),
       });
+      setEditingSite(null);
       await refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "No se pudo editar la sede");
+    } finally {
+      setSavingEdit(false);
     }
   }
 
@@ -146,26 +154,30 @@ export default function SitesPage() {
     }
   }
 
-  async function editGateway(gateway: GatewayView): Promise<void> {
-    const name = window.prompt("Nombre del gateway", gateway.name);
-    if (!name) return;
-    const nasIdentifier = window.prompt("NAS Identifier", gateway.nasIdentifier);
-    if (!nasIdentifier) return;
-    const model = window.prompt("Modelo", gateway.model ?? "");
-    const serial = window.prompt("Serie", gateway.serial ?? "");
+  async function submitEditGateway(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!editingGateway) return;
+    setSavingEdit(true);
+    setError(null);
+    const data = new FormData(event.currentTarget);
     try {
-      await adminApi<GatewayView>(`/api/v1/admin/gateways/${gateway.id}`, {
+      await adminApi<GatewayView>(`/api/v1/admin/gateways/${editingGateway.id}`, {
         method: "PATCH",
         body: JSON.stringify({
-          name,
-          nasIdentifier,
-          model: model || undefined,
-          serial: serial || undefined,
+          siteId: data.get("siteId"),
+          name: data.get("name"),
+          nasIdentifier: data.get("nasIdentifier"),
+          model: data.get("model") || undefined,
+          serial: data.get("serial") || undefined,
+          status: data.get("status") || undefined,
         }),
       });
+      setEditingGateway(null);
       await refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "No se pudo editar el gateway");
+    } finally {
+      setSavingEdit(false);
     }
   }
 
@@ -313,7 +325,7 @@ export default function SitesPage() {
                 </td>
                 <td className="px-5 py-4">
                   <div className="flex justify-end gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => void editSite(site)}>
+                    <Button variant="ghost" size="sm" onClick={() => setEditingSite(site)}>
                       <Pencil className="size-3.5" /> Editar
                     </Button>
                     <Button variant="ghost" size="sm" onClick={() => void archiveSite(site)}>
@@ -376,7 +388,7 @@ export default function SitesPage() {
                   </td>
                   <td className="px-5 py-4">
                     <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => void editGateway(gateway)}>
+                      <Button variant="ghost" size="sm" onClick={() => setEditingGateway(gateway)}>
                         <Pencil className="size-3.5" /> Editar
                       </Button>
                       <Button
@@ -401,6 +413,133 @@ export default function SitesPage() {
           </table>
         </TableFrame>
       </div>
+
+      <EditDialog
+        open={editingSite !== null}
+        title="Editar sede"
+        description="Modifica los datos principales de la sede."
+        saving={savingEdit}
+        onClose={() => setEditingSite(null)}
+        onSubmit={() =>
+          (document.getElementById("edit-site-form") as HTMLFormElement | null)?.requestSubmit()
+        }
+      >
+        {editingSite ? (
+          <form
+            id="edit-site-form"
+            onSubmit={(event) => void submitEditSite(event)}
+            className="grid gap-3 sm:grid-cols-2"
+          >
+            <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+              Nombre de la sede
+              <input name="name" required defaultValue={editingSite.name} className={inputClass} />
+            </label>
+            <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+              Código
+              <input name="code" required defaultValue={editingSite.code} className={inputClass} />
+            </label>
+            <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+              País
+              <input
+                name="countryCode"
+                required
+                maxLength={2}
+                defaultValue={editingSite.countryCode}
+                className={inputClass}
+              />
+            </label>
+            <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+              Zona horaria
+              <input
+                name="timezone"
+                required
+                defaultValue={editingSite.timezone}
+                className={inputClass}
+              />
+            </label>
+          </form>
+        ) : null}
+      </EditDialog>
+
+      <EditDialog
+        open={editingGateway !== null}
+        title="Editar gateway"
+        description="Modifica sede, NAS Identifier, modelo y estado en una sola ventana."
+        saving={savingEdit}
+        onClose={() => setEditingGateway(null)}
+        onSubmit={() =>
+          (
+            document.getElementById("edit-sites-gateway-form") as HTMLFormElement | null
+          )?.requestSubmit()
+        }
+      >
+        {editingGateway ? (
+          <form
+            id="edit-sites-gateway-form"
+            onSubmit={(event) => void submitEditGateway(event)}
+            className="grid gap-3 sm:grid-cols-2"
+          >
+            <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+              Sede
+              <select
+                name="siteId"
+                required
+                defaultValue={editingGateway.siteId}
+                className={inputClass}
+              >
+                {sites.map((site) => (
+                  <option key={site.id} value={site.id}>
+                    {site.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+              Nombre
+              <input
+                name="name"
+                required
+                defaultValue={editingGateway.name}
+                className={inputClass}
+              />
+            </label>
+            <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+              NAS Identifier
+              <input
+                name="nasIdentifier"
+                required
+                defaultValue={editingGateway.nasIdentifier}
+                className={inputClass}
+              />
+            </label>
+            <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+              Estado
+              <select name="status" defaultValue={editingGateway.status} className={inputClass}>
+                <option value="pending">pending</option>
+                <option value="online">online</option>
+                <option value="degraded">degraded</option>
+                <option value="offline">offline</option>
+              </select>
+            </label>
+            <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+              Modelo
+              <input
+                name="model"
+                defaultValue={editingGateway.model ?? ""}
+                className={inputClass}
+              />
+            </label>
+            <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+              Serie
+              <input
+                name="serial"
+                defaultValue={editingGateway.serial ?? ""}
+                className={inputClass}
+              />
+            </label>
+          </form>
+        ) : null}
+      </EditDialog>
     </>
   );
 }

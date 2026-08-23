@@ -5,6 +5,7 @@ import { Archive, Building2, Pencil, Plus, RefreshCcw } from "lucide-react";
 
 import { Badge, Button } from "@wifi/ui";
 
+import { EditDialog } from "@/components/edit-dialog";
 import { PageHeader } from "@/components/page-header";
 import { TableFrame } from "@/components/table-frame";
 import { adminApi, inputClass } from "../admin-api";
@@ -22,8 +23,10 @@ interface OrganizationView {
 export default function OrganizationsPage() {
   const [organizations, setOrganizations] = useState<OrganizationView[]>([]);
   const [saving, setSaving] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editingOrganization, setEditingOrganization] = useState<OrganizationView | null>(null);
 
   async function refresh(): Promise<void> {
     setError(null);
@@ -61,20 +64,27 @@ export default function OrganizationsPage() {
     }
   }
 
-  async function editOrganization(organization: OrganizationView): Promise<void> {
-    const name = window.prompt("Nombre comercial", organization.name);
-    if (!name) return;
-    const code = window.prompt("Código", organization.code);
-    if (!code) return;
-    const legalName = window.prompt("Razón social", organization.legalName ?? "");
+  async function submitEditOrganization(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!editingOrganization) return;
+    setSavingEdit(true);
+    setError(null);
+    const data = new FormData(event.currentTarget);
     try {
-      await adminApi<OrganizationView>(`/api/v1/admin/organizations/${organization.id}`, {
+      await adminApi<OrganizationView>(`/api/v1/admin/organizations/${editingOrganization.id}`, {
         method: "PATCH",
-        body: JSON.stringify({ name, code, legalName: legalName || undefined }),
+        body: JSON.stringify({
+          name: data.get("name"),
+          code: data.get("code"),
+          legalName: data.get("legalName") || undefined,
+        }),
       });
+      setEditingOrganization(null);
       await refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "No se pudo editar la organización");
+    } finally {
+      setSavingEdit(false);
     }
   }
 
@@ -172,7 +182,7 @@ export default function OrganizationsPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => void editOrganization(organization)}
+                      onClick={() => setEditingOrganization(organization)}
                     >
                       <Pencil className="size-3.5" /> Editar
                     </Button>
@@ -190,6 +200,54 @@ export default function OrganizationsPage() {
           </tbody>
         </table>
       </TableFrame>
+
+      <EditDialog
+        open={editingOrganization !== null}
+        title="Editar organización"
+        description="Modifica todos los datos de la organización y guarda una sola vez."
+        saving={savingEdit}
+        onClose={() => setEditingOrganization(null)}
+        onSubmit={() =>
+          (
+            document.getElementById("edit-organization-form") as HTMLFormElement | null
+          )?.requestSubmit()
+        }
+      >
+        {editingOrganization ? (
+          <form
+            id="edit-organization-form"
+            onSubmit={(event) => void submitEditOrganization(event)}
+            className="grid gap-3"
+          >
+            <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+              Nombre comercial
+              <input
+                name="name"
+                required
+                defaultValue={editingOrganization.name}
+                className={inputClass}
+              />
+            </label>
+            <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+              Código
+              <input
+                name="code"
+                required
+                defaultValue={editingOrganization.code}
+                className={inputClass}
+              />
+            </label>
+            <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+              Razón social
+              <input
+                name="legalName"
+                defaultValue={editingOrganization.legalName ?? ""}
+                className={inputClass}
+              />
+            </label>
+          </form>
+        ) : null}
+      </EditDialog>
     </>
   );
 }

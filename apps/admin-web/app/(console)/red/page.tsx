@@ -5,6 +5,7 @@ import { Archive, Pencil, Plus, RefreshCcw, Router, Wifi } from "lucide-react";
 
 import { Badge, Button } from "@wifi/ui";
 
+import { EditDialog } from "@/components/edit-dialog";
 import { PageHeader } from "@/components/page-header";
 import { TableFrame } from "@/components/table-frame";
 import { adminApi, inputClass } from "../admin-api";
@@ -17,6 +18,7 @@ interface SiteView {
 
 interface GatewayView {
   id: string;
+  siteId: string;
   siteName: string;
   siteCode: string;
   name: string;
@@ -33,7 +35,9 @@ export default function NetworkPage() {
   const [sites, setSites] = useState<SiteView[]>([]);
   const [gateways, setGateways] = useState<GatewayView[]>([]);
   const [saving, setSaving] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editingGateway, setEditingGateway] = useState<GatewayView | null>(null);
 
   async function refresh(): Promise<void> {
     setError(null);
@@ -76,26 +80,30 @@ export default function NetworkPage() {
     }
   }
 
-  async function editGateway(gateway: GatewayView): Promise<void> {
-    const name = window.prompt("Nombre del gateway", gateway.name);
-    if (!name) return;
-    const nasIdentifier = window.prompt("NAS Identifier", gateway.nasIdentifier);
-    if (!nasIdentifier) return;
-    const model = window.prompt("Modelo", gateway.model ?? "");
-    const serial = window.prompt("Serie", gateway.serial ?? "");
+  async function submitEditGateway(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!editingGateway) return;
+    setSavingEdit(true);
+    setError(null);
+    const data = new FormData(event.currentTarget);
     try {
-      await adminApi<GatewayView>(`/api/v1/admin/gateways/${gateway.id}`, {
+      await adminApi<GatewayView>(`/api/v1/admin/gateways/${editingGateway.id}`, {
         method: "PATCH",
         body: JSON.stringify({
-          name,
-          nasIdentifier,
-          model: model || undefined,
-          serial: serial || undefined,
+          siteId: data.get("siteId"),
+          name: data.get("name"),
+          nasIdentifier: data.get("nasIdentifier"),
+          model: data.get("model") || undefined,
+          serial: data.get("serial") || undefined,
+          status: data.get("status") || undefined,
         }),
       });
+      setEditingGateway(null);
       await refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "No se pudo editar el gateway");
+    } finally {
+      setSavingEdit(false);
     }
   }
 
@@ -211,7 +219,7 @@ export default function NetworkPage() {
                 </td>
                 <td className="px-5 py-4">
                   <div className="flex gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => void editGateway(gateway)}>
+                    <Button variant="ghost" size="sm" onClick={() => setEditingGateway(gateway)}>
                       <Pencil className="size-3.5" /> Editar
                     </Button>
                     <Button variant="ghost" size="sm" onClick={() => void archiveGateway(gateway)}>
@@ -232,6 +240,86 @@ export default function NetworkPage() {
           </tbody>
         </table>
       </TableFrame>
+
+      <EditDialog
+        open={editingGateway !== null}
+        title="Editar gateway"
+        description="Cambia todos los datos del RouterBOARD/NAS en una sola ventana."
+        saving={savingEdit}
+        onClose={() => setEditingGateway(null)}
+        onSubmit={() =>
+          (
+            document.getElementById("edit-network-gateway-form") as HTMLFormElement | null
+          )?.requestSubmit()
+        }
+      >
+        {editingGateway ? (
+          <form
+            id="edit-network-gateway-form"
+            onSubmit={(event) => void submitEditGateway(event)}
+            className="grid gap-3 sm:grid-cols-2"
+          >
+            <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+              Sede
+              <select
+                name="siteId"
+                required
+                defaultValue={editingGateway.siteId}
+                className={inputClass}
+              >
+                {sites.map((site) => (
+                  <option key={site.id} value={site.id}>
+                    {site.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+              Nombre
+              <input
+                name="name"
+                required
+                defaultValue={editingGateway.name}
+                className={inputClass}
+              />
+            </label>
+            <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+              NAS Identifier
+              <input
+                name="nasIdentifier"
+                required
+                defaultValue={editingGateway.nasIdentifier}
+                className={inputClass}
+              />
+            </label>
+            <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+              Estado
+              <select name="status" defaultValue={editingGateway.status} className={inputClass}>
+                <option value="pending">pending</option>
+                <option value="online">online</option>
+                <option value="degraded">degraded</option>
+                <option value="offline">offline</option>
+              </select>
+            </label>
+            <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+              Modelo
+              <input
+                name="model"
+                defaultValue={editingGateway.model ?? ""}
+                className={inputClass}
+              />
+            </label>
+            <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+              Serie
+              <input
+                name="serial"
+                defaultValue={editingGateway.serial ?? ""}
+                className={inputClass}
+              />
+            </label>
+          </form>
+        ) : null}
+      </EditDialog>
     </>
   );
 }
