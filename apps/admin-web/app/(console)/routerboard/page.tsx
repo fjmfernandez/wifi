@@ -99,9 +99,7 @@ function buildLoginHtml(locator: string): string {
     <button type="submit">Abrir portal WiFi</button>
     </form>
   </main>
-  <script>
-    window.setTimeout(function(){document.getElementById("wpass-captive").submit()}, 250);
-  </script>
+  <script>document.getElementById("wpass-captive").submit()</script>
 </body>
 </html>`;
 }
@@ -155,9 +153,13 @@ function buildRouterScript({
     )} port=${values.sstpPort || "4443"} user=${routerQuote(values.sstpUser)} password=${routerQuote(
       values.sstpPassword,
     )} authentication=mschap2 profile=default-encryption add-default-route=no verify-server-certificate=no disabled=no`,
-    `/ip dns set allow-remote-requests=yes`,
+    `/ip dns set allow-remote-requests=yes query-server-timeout=1s query-total-timeout=2s cache-size=4096KiB`,
     `/ip dns static remove [find comment=${routerQuote("WPass captive")}]`,
+    `/ip dns static remove [find comment=${routerQuote("WPass SaaS")}]`,
     `/ip dns static add name=${routerQuote(captiveHost)} address=${captiveIp} ttl=1h comment=${routerQuote(
+      "WPass captive",
+    )}`,
+    `/ip dns static add name=${routerQuote("wpass.es")} address=${captiveIp} ttl=1h comment=${routerQuote(
       "WPass captive",
     )}`,
     `/ip route remove [find comment=${routerQuote("WPass RADIUS via SSTP")}]`,
@@ -192,10 +194,17 @@ function buildRouterScript({
       hotspotInterface,
     )} profile=${routerQuote(hotspotProfile)} disabled=no }`,
     `/ip hotspot walled-garden remove [find comment=${routerQuote("WPass captive")}]`,
+    `/ip hotspot walled-garden ip remove [find comment=${routerQuote("WPass captive")}]`,
     `/ip hotspot walled-garden add dst-host=${routerQuote(captiveHost)} comment=${routerQuote(
       "WPass captive",
     )}`,
     `/ip hotspot walled-garden add dst-host=${routerQuote("wpass.es")} comment=${routerQuote(
+      "WPass captive",
+    )}`,
+    `/ip hotspot walled-garden ip add dst-address=${captiveIp} protocol=tcp dst-port=80 action=accept comment=${routerQuote(
+      "WPass captive",
+    )}`,
+    `/ip hotspot walled-garden ip add dst-address=${captiveIp} protocol=tcp dst-port=443 action=accept comment=${routerQuote(
       "WPass captive",
     )}`,
     `:do { /file make-directory ${routerQuote(htmlDirectory)} } on-error={}`,
