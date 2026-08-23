@@ -282,6 +282,8 @@ export function CaptiveFlow() {
           <form action={authorization.loginUrl} method="post" className="mt-7">
             <input type="hidden" name="username" value={authorization.username} />
             <input type="hidden" name="password" value={authorization.password} />
+            <input type="hidden" name="dst" value="https://www.entelsat.com/" />
+            <input type="hidden" name="popup" value="false" />
             <button
               type="submit"
               className="h-12 w-full rounded-xl bg-hotel-600 px-5 text-sm font-bold text-white shadow-lg shadow-hotel-900/15 hover:bg-hotel-700"

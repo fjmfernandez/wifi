@@ -101,7 +101,8 @@ sql_runtime="$runtime_dir/sql-runtime.conf"
   printf 'password = "%s"\n' "$db_password"
   printf 'radius_db = "%s"\n' "$db_name"
 } > "$sql_runtime_tmp"
-chmod 0600 "$sql_runtime_tmp"
+chown freerad:freerad "$sql_runtime_tmp"
+chmod 0640 "$sql_runtime_tmp"
 mv -f "$sql_runtime_tmp" "$sql_runtime"
 unset db_password
 
@@ -113,6 +114,7 @@ clients_runtime_tmp="$runtime_dir/clients-runtime.conf.tmp"
 clients_runtime="$runtime_dir/clients-runtime.conf"
 : > "$clients_runtime_tmp"
 client_count=0
+trusted_proxy_cidrs="${RADIUS_TRUSTED_PROXY_CIDRS:-}"
 
 while IFS="$(printf '\t')" read -r client_name client_ip client_secret extra; do
   case "$client_name" in
@@ -139,10 +141,30 @@ client ${client_name} {
 }
 EOF
   client_count=$((client_count + 1))
+
+  if [ -n "$trusted_proxy_cidrs" ]; then
+    for proxy_cidr in $trusted_proxy_cidrs; do
+      case "$proxy_cidr" in
+        ''|0.0.0.0|::|*[!0-9A-Fa-f:./]*) die "trusted proxy CIDR for $client_name is invalid" ;;
+      esac
+      proxy_name="${client_name}_proxy_${client_count}"
+      cat >> "$clients_runtime_tmp" <<EOF
+client ${proxy_name} {
+    ipaddr = ${proxy_cidr}
+    shortname = ${proxy_name}
+    secret = ${client_secret}
+    nas_type = other
+    require_message_authenticator = no
+}
+EOF
+      client_count=$((client_count + 1))
+    done
+  fi
 done < "$clients_normalized"
 
 [ "$client_count" -gt 0 ] || die "client secret file did not contain a NAS client"
-chmod 0600 "$clients_runtime_tmp"
+chown freerad:freerad "$clients_runtime_tmp"
+chmod 0640 "$clients_runtime_tmp"
 mv -f "$clients_runtime_tmp" "$clients_runtime"
 rm -f "$clients_normalized"
 
