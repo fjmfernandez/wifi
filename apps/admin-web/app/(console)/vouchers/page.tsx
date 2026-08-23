@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Download, FileDown, KeyRound, Plus, RefreshCcw } from "lucide-react";
+import { Download, FileDown, KeyRound, Plus, Printer, QrCode, RefreshCcw } from "lucide-react";
+import { toDataURL } from "qrcode";
 
 import { Badge, Button, Card } from "@wifi/ui";
 
@@ -20,6 +21,11 @@ interface PolicyView {
   id: string;
   name: string;
   versionId: string | null;
+  downloadKbps: number | null;
+  uploadKbps: number | null;
+  sessionTimeoutSeconds: number | null;
+  quotaBytes: string | null;
+  maxConcurrentDevices: number | null;
 }
 
 interface VoucherBatchView {
@@ -36,11 +42,50 @@ interface VoucherBatchView {
   oneTimeCodes?: string[];
 }
 
+interface VoucherTicket {
+  code: string;
+  batchName: string;
+  siteName: string;
+  policyName: string;
+  policyLimits: string;
+  expiresAt: string;
+  maxUses: number;
+  maxDevices: number;
+}
+
+function mbps(kbps: number | null): string {
+  if (!kbps) return "sin límite";
+  return `${Math.round(kbps / 1000)} Mbps`;
+}
+
+function gb(bytes: string | null): string {
+  if (!bytes) return "sin cuota";
+  return `${Math.round(Number(bytes) / 1024 ** 3)} GB`;
+}
+
+function hours(seconds: number | null): string {
+  if (!seconds) return "sin caducidad de sesión";
+  return `${Math.round(seconds / 3600)} h de sesión`;
+}
+
+function policyLimits(policy: PolicyView | undefined): string {
+  if (!policy) return "Sin servicio seleccionado";
+  return [
+    `Bajada ${mbps(policy.downloadKbps)}`,
+    `Subida ${mbps(policy.uploadKbps)}`,
+    hours(policy.sessionTimeoutSeconds),
+    gb(policy.quotaBytes),
+    `${policy.maxConcurrentDevices ?? 1} dispositivo(s)`,
+  ].join(" · ");
+}
+
 export default function VouchersPage() {
   const [sites, setSites] = useState<SiteView[]>([]);
   const [policies, setPolicies] = useState<PolicyView[]>([]);
   const [batches, setBatches] = useState<VoucherBatchView[]>([]);
   const [lastCodes, setLastCodes] = useState<string[]>([]);
+  const [ticket, setTicket] = useState<VoucherTicket | null>(null);
+  const [ticketQr, setTicketQr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,6 +106,16 @@ export default function VouchersPage() {
       setError(cause instanceof Error ? cause.message : "No se pudieron cargar vouchers"),
     );
   }, []);
+
+  useEffect(() => {
+    if (!ticket) {
+      setTicketQr(null);
+      return;
+    }
+    void toDataURL(ticket.code, { margin: 1, scale: 7, errorCorrectionLevel: "M" })
+      .then(setTicketQr)
+      .catch(() => setTicketQr(null));
+  }, [ticket]);
 
   const totals = useMemo(
     () => ({
@@ -89,7 +144,24 @@ export default function VouchersPage() {
           defaultMaxDevices: data.get("defaultMaxDevices") || 1,
         }),
       });
-      setLastCodes(created.oneTimeCodes ?? []);
+      const codes = created.oneTimeCodes ?? [];
+      setLastCodes(codes);
+      const selectedSite = sites.find((site) => site.id === String(data.get("siteId")));
+      const selectedPolicy = policies.find(
+        (policy) => policy.versionId === String(data.get("policyVersionId")),
+      );
+      if (codes.length === 1) {
+        setTicket({
+          code: codes[0] ?? "",
+          batchName: created.name,
+          siteName: selectedSite?.name ?? created.siteName,
+          policyName: selectedPolicy?.name ?? created.policyName,
+          policyLimits: policyLimits(selectedPolicy),
+          expiresAt: created.expiresAt,
+          maxUses: Number(data.get("defaultMaxUses") || 1),
+          maxDevices: Number(data.get("defaultMaxDevices") || 1),
+        });
+      }
       event.currentTarget.reset();
       await refresh();
     } catch (cause) {
@@ -113,7 +185,7 @@ export default function VouchersPage() {
     <>
       <PageHeader
         title="Vouchers"
-        description="Emite lotes de códigos para acceso WiFi y guarda solo el hash seguro en base de datos."
+        description="Crea códigos de acceso WiFi. Para entregar a un cliente, genera cantidad 1 e imprime el ticket con QR."
         actions={
           <Button variant="secondary" onClick={() => void refresh()}>
             <RefreshCcw className="size-4" /> Actualizar
@@ -153,69 +225,183 @@ export default function VouchersPage() {
 
       <form
         onSubmit={(event) => void createBatch(event)}
-        className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+        className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm print:hidden"
       >
-        <h2 className="text-sm font-extrabold text-slate-900">Crear lote de vouchers</h2>
-        <div className="mt-4 grid gap-3 md:grid-cols-3 xl:grid-cols-7">
-          <input name="name" required placeholder="Nombre del lote" className={inputClass} />
-          <select name="siteId" required defaultValue="" className={inputClass}>
-            <option value="" disabled>
-              Sede
-            </option>
-            {sites.map((site) => (
-              <option key={site.id} value={site.id}>
-                {site.name}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-sm font-extrabold text-slate-900">
+              Crear voucher individual o lote
+            </h2>
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              Cantidad 1 crea un ticket para un cliente. Cantidad mayor crea un lote para descargar
+              en TXT.
+            </p>
+          </div>
+          <span className="inline-flex w-fit items-center gap-2 rounded-full bg-brand-50 px-3 py-1.5 text-[11px] font-bold text-brand-700">
+            <QrCode className="size-3.5" /> QR automático si cantidad = 1
+          </span>
+        </div>
+        <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+            Nombre interno
+            <input
+              name="name"
+              required
+              placeholder="Ej. Cliente recepción habitación 204"
+              className={inputClass}
+            />
+            <span className="font-medium leading-5 text-slate-500">
+              Sirve para localizar el voucher en el histórico.
+            </span>
+          </label>
+          <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+            Sede donde funcionará
+            <select name="siteId" required defaultValue="" className={inputClass}>
+              <option value="" disabled>
+                Selecciona sede
               </option>
-            ))}
-          </select>
-          <select name="policyVersionId" required defaultValue="" className={inputClass}>
-            <option value="" disabled>
-              Servicio
-            </option>
-            {policies.map((policy) => (
-              <option key={policy.id} value={policy.versionId ?? ""}>
-                {policy.name}
+              {sites.map((site) => (
+                <option key={site.id} value={site.id}>
+                  {site.name}
+                </option>
+              ))}
+            </select>
+            <span className="font-medium leading-5 text-slate-500">
+              El código solo debe entregarse para esta sede.
+            </span>
+          </label>
+          <label className="grid gap-1.5 text-xs font-bold text-slate-700 xl:col-span-2">
+            Servicio / límites
+            <select name="policyVersionId" required defaultValue="" className={inputClass}>
+              <option value="" disabled>
+                Selecciona servicio
               </option>
-            ))}
-          </select>
-          <input
-            name="quantity"
-            required
-            type="number"
-            min={1}
-            max={250}
-            defaultValue={25}
-            className={inputClass}
-          />
-          <input name="expiresAt" required type="datetime-local" className={inputClass} />
-          <input
-            name="defaultMaxUses"
-            type="number"
-            min={1}
-            defaultValue={1}
-            placeholder="Usos"
-            className={inputClass}
-          />
-          <input
-            name="defaultMaxDevices"
-            type="number"
-            min={1}
-            defaultValue={1}
-            placeholder="Dispositivos"
-            className={inputClass}
-          />
+              {policies.map((policy) => (
+                <option key={policy.id} value={policy.versionId ?? ""}>
+                  {policy.name} · {policyLimits(policy)}
+                </option>
+              ))}
+            </select>
+            <span className="font-medium leading-5 text-slate-500">
+              Aquí ves si tiene límites de bajada/subida, cuota, duración y dispositivos.
+            </span>
+          </label>
+          <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+            Cantidad
+            <input
+              name="quantity"
+              required
+              type="number"
+              min={1}
+              max={250}
+              defaultValue={1}
+              className={inputClass}
+            />
+            <span className="font-medium leading-5 text-slate-500">
+              Usa 1 para un cliente y poder imprimir QR.
+            </span>
+          </label>
+          <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+            Caduca el
+            <input name="expiresAt" required type="datetime-local" className={inputClass} />
+            <span className="font-medium leading-5 text-slate-500">
+              Fecha límite para usar el voucher.
+            </span>
+          </label>
+          <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+            Usos permitidos
+            <input
+              name="defaultMaxUses"
+              type="number"
+              min={1}
+              defaultValue={1}
+              className={inputClass}
+            />
+            <span className="font-medium leading-5 text-slate-500">
+              Normalmente 1 para entregar a una persona.
+            </span>
+          </label>
+          <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+            Dispositivos
+            <input
+              name="defaultMaxDevices"
+              type="number"
+              min={1}
+              defaultValue={1}
+              className={inputClass}
+            />
+            <span className="font-medium leading-5 text-slate-500">
+              Cuántos móviles/portátiles puede asociar.
+            </span>
+          </label>
         </div>
         <Button
           type="submit"
           className="mt-4"
           disabled={saving || sites.length === 0 || policies.length === 0}
         >
-          <Plus className="size-4" /> {saving ? "Generando…" : "Crear lote"}
+          <Plus className="size-4" /> {saving ? "Generando…" : "Crear voucher"}
         </Button>
       </form>
 
+      {ticket ? (
+        <Card className="mb-4 overflow-hidden border-brand-100 bg-white print:fixed print:inset-0 print:z-50 print:m-0 print:rounded-none print:border-0 print:p-0">
+          <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between print:hidden">
+            <div>
+              <p className="text-sm font-extrabold text-slate-900">Ticket listo para entregar</p>
+              <p className="mt-1 text-xs text-slate-500">
+                El QR contiene el código del voucher. También se imprime el código por si el cliente
+                lo introduce manualmente.
+              </p>
+            </div>
+            <Button variant="secondary" size="sm" onClick={() => window.print()}>
+              <Printer className="size-3.5" /> Imprimir ticket
+            </Button>
+          </div>
+          <div className="mx-auto max-w-md border-t border-slate-100 p-6 text-center print:border-0 print:p-10">
+            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-brand-700">
+              ENTELSAT WiFi
+            </p>
+            <h2 className="mt-2 text-2xl font-black text-slate-950">{ticket.siteName}</h2>
+            <p className="mt-1 text-xs text-slate-500">{ticket.batchName}</p>
+            <div className="mx-auto mt-5 grid size-52 place-items-center rounded-3xl border border-slate-200 bg-slate-50 p-3">
+              {ticketQr ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={ticketQr} alt={`QR voucher ${ticket.code}`} className="size-full" />
+              ) : (
+                <QrCode className="size-16 text-slate-300" />
+              )}
+            </div>
+            <p className="mt-5 text-xs font-bold uppercase tracking-wider text-slate-400">
+              Código de acceso
+            </p>
+            <p className="mt-1 font-mono text-3xl font-black tracking-[0.18em] text-slate-950">
+              {ticket.code}
+            </p>
+            <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-left text-xs leading-5 text-slate-600">
+              <p>
+                <span className="font-extrabold text-slate-800">Servicio:</span> {ticket.policyName}
+              </p>
+              <p>
+                <span className="font-extrabold text-slate-800">Límites:</span>{" "}
+                {ticket.policyLimits}
+              </p>
+              <p>
+                <span className="font-extrabold text-slate-800">Usos:</span> {ticket.maxUses} ·{" "}
+                <span className="font-extrabold text-slate-800">Dispositivos:</span>{" "}
+                {ticket.maxDevices}
+              </p>
+              <p>
+                <span className="font-extrabold text-slate-800">Caduca:</span>{" "}
+                {new Date(ticket.expiresAt).toLocaleString("es-ES")}
+              </p>
+            </div>
+          </div>
+        </Card>
+      ) : null}
+
       {lastCodes.length > 0 ? (
-        <Card className="mb-4 border-emerald-100 bg-emerald-50/60 p-4">
+        <Card className="mb-4 border-emerald-100 bg-emerald-50/60 p-4 print:hidden">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-extrabold text-emerald-900">Códigos generados ahora</p>
@@ -237,14 +423,16 @@ export default function VouchersPage() {
         <table className="w-full min-w-[900px] border-collapse text-left">
           <thead>
             <tr className="border-b border-slate-100 bg-slate-50/70">
-              {["Lote", "Sede", "Servicio", "Disponibles", "Usados", "Caduca"].map((item) => (
-                <th
-                  key={item}
-                  className="px-5 py-3 text-[10px] font-extrabold uppercase tracking-wider text-slate-400"
-                >
-                  {item}
-                </th>
-              ))}
+              {["Lote", "Sede", "Servicio y límites", "Disponibles", "Usados", "Caduca"].map(
+                (item) => (
+                  <th
+                    key={item}
+                    className="px-5 py-3 text-[10px] font-extrabold uppercase tracking-wider text-slate-400"
+                  >
+                    {item}
+                  </th>
+                ),
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -254,7 +442,12 @@ export default function VouchersPage() {
                 <td className="px-5 py-4 text-xs text-slate-600">
                   {batch.siteName} · {batch.siteCode}
                 </td>
-                <td className="px-5 py-4 text-xs text-slate-600">{batch.policyName}</td>
+                <td className="px-5 py-4 text-xs text-slate-600">
+                  <span className="font-extrabold text-slate-800">{batch.policyName}</span>
+                  <span className="mt-1 block text-[11px] leading-4 text-slate-500">
+                    Consulta los límites exactos en Servicios.
+                  </span>
+                </td>
                 <td className="px-5 py-4">
                   <Badge variant={batch.available > 0 ? "success" : "neutral"} dot>
                     {batch.available} / {batch.quantity}

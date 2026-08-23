@@ -235,15 +235,16 @@ model RoleAssignment {
 }
 
 model Organization {
-  id         String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  tenantId   String    @map("tenant_id") @db.Uuid
-  code       String    @db.VarChar(64)
-  name       String    @db.VarChar(160)
-  legalName  String?   @map("legal_name") @db.VarChar(200)
-  status     String    @default("active") @db.VarChar(24)
-  archivedAt DateTime? @map("archived_at") @db.Timestamptz(6)
-  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                     String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId               String    @map("tenant_id") @db.Uuid
+  code                   String    @db.VarChar(64)
+  name                   String    @db.VarChar(160)
+  legalName              String?   @map("legal_name") @db.VarChar(200)
+  status                 String    @default("active") @db.VarChar(24)
+  marketingAccessEnabled Boolean   @default(false) @map("marketing_access_enabled")
+  archivedAt             DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   sites             Site[]

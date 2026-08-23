@@ -27,6 +27,7 @@ export interface CreateOrganizationInput {
   code: string;
   name: string;
   legalName?: string | undefined;
+  marketingAccessEnabled?: boolean | undefined;
 }
 
 export interface CreatePolicyInput {
@@ -60,6 +61,7 @@ export interface UpdateOrganizationInput {
   code?: string | undefined;
   name?: string | undefined;
   legalName?: string | undefined;
+  marketingAccessEnabled?: boolean | undefined;
 }
 
 export interface UpdateSiteInput {
@@ -168,6 +170,7 @@ export class AdminOperationsService {
         name: organization.name,
         legalName: organization.legalName,
         status: organization.status,
+        marketingAccessEnabled: organization.marketingAccessEnabled,
         sitesTotal: organization.sites.length,
         createdAt: organization.createdAt.toISOString(),
       }));
@@ -182,6 +185,7 @@ export class AdminOperationsService {
           code: input.code,
           name: input.name,
           ...(input.legalName ? { legalName: input.legalName } : {}),
+          marketingAccessEnabled: input.marketingAccessEnabled ?? false,
           status: "active",
         },
       });
@@ -191,6 +195,7 @@ export class AdminOperationsService {
         name: organization.name,
         legalName: organization.legalName,
         status: organization.status,
+        marketingAccessEnabled: organization.marketingAccessEnabled,
         sitesTotal: 0,
         createdAt: organization.createdAt.toISOString(),
       };
@@ -213,6 +218,9 @@ export class AdminOperationsService {
           ...(input.code === undefined ? {} : { code: input.code }),
           ...(input.name === undefined ? {} : { name: input.name }),
           ...(input.legalName === undefined ? {} : { legalName: input.legalName || null }),
+          ...(input.marketingAccessEnabled === undefined
+            ? {}
+            : { marketingAccessEnabled: input.marketingAccessEnabled }),
         },
         include: { sites: { where: { archivedAt: null }, select: { id: true } } },
       });
@@ -222,6 +230,7 @@ export class AdminOperationsService {
         name: organization.name,
         legalName: organization.legalName,
         status: organization.status,
+        marketingAccessEnabled: organization.marketingAccessEnabled,
         sitesTotal: organization.sites.length,
         createdAt: organization.createdAt.toISOString(),
       };
@@ -896,6 +905,11 @@ export class AdminOperationsService {
           tenantId,
           anonymizedAt: null,
           identifiers: { some: { kind: "email" } },
+          authorizations: {
+            some: {
+              gateway: { site: { organization: { marketingAccessEnabled: true } } },
+            },
+          },
         },
         orderBy: { updatedAt: "desc" },
         take: 500,
@@ -910,7 +924,13 @@ export class AdminOperationsService {
           authorizations: {
             orderBy: { createdAt: "desc" },
             take: 1,
-            include: { gateway: { include: { site: { select: { name: true } } } } },
+            include: {
+              gateway: {
+                include: {
+                  site: { select: { name: true, organization: { select: { name: true } } } },
+                },
+              },
+            },
           },
           _count: { select: { authorizations: true } },
         },
@@ -936,6 +956,7 @@ export class AdminOperationsService {
           marketingConsent: latestConsent?.decision ?? "not_requested",
           consentAt: latestConsent?.occurredAt.toISOString() ?? null,
           visits: user._count.authorizations,
+          organizationName: latestAuthorization?.gateway.site.organization.name ?? null,
           lastSiteName: latestAuthorization?.gateway.site.name ?? null,
           lastSeenAt: latestAuthorization?.createdAt.toISOString() ?? null,
           createdAt: user.createdAt.toISOString(),

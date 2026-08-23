@@ -24,6 +24,7 @@ interface MarketingContact {
   marketingConsent: "granted" | "rejected" | "withdrawn" | "not_requested";
   consentAt: string | null;
   visits: number;
+  organizationName: string | null;
   lastSiteName: string | null;
   lastSeenAt: string | null;
   createdAt: string;
@@ -67,7 +68,13 @@ export default function MarketingPage() {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return contacts;
     return contacts.filter((contact) =>
-      [contact.firstName, contact.lastName, contact.email, contact.lastSiteName]
+      [
+        contact.firstName,
+        contact.lastName,
+        contact.email,
+        contact.organizationName,
+        contact.lastSiteName,
+      ]
         .filter(Boolean)
         .some((value) => value!.toLowerCase().includes(normalized)),
     );
@@ -84,6 +91,7 @@ export default function MarketingPage() {
         "marketing",
         "fecha_consentimiento",
         "visitas",
+        "organizacion",
         "ultima_sede",
         "ultima_conexion",
       ],
@@ -94,6 +102,7 @@ export default function MarketingPage() {
         consentLabel(contact.marketingConsent),
         contact.consentAt ?? "",
         contact.visits,
+        contact.organizationName ?? "",
         contact.lastSiteName ?? "",
         contact.lastSeenAt ?? "",
       ]),
@@ -112,7 +121,7 @@ export default function MarketingPage() {
     <>
       <PageHeader
         title="Marketing"
-        description="Contactos capturados desde el portal cautivo con consentimiento trazable."
+        description="Contactos capturados desde organizaciones con Marketing habilitado y consentimiento trazable."
         actions={
           <>
             <Button variant="secondary" onClick={() => void refresh()}>
@@ -155,13 +164,14 @@ export default function MarketingPage() {
           </p>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[920px] text-left text-sm">
+          <table className="w-full min-w-[1020px] text-left text-sm">
             <thead>
               <tr className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-500">
                 <th className="py-3 pr-4">Contacto</th>
                 <th className="py-3 pr-4">Email</th>
                 <th className="py-3 pr-4">Marketing</th>
                 <th className="py-3 pr-4">Visitas</th>
+                <th className="py-3 pr-4">Organización</th>
                 <th className="py-3 pr-4">Última sede</th>
                 <th className="py-3">Última conexión</th>
               </tr>
@@ -188,6 +198,7 @@ export default function MarketingPage() {
                     </Badge>
                   </td>
                   <td className="py-3 pr-4 text-slate-600">{contact.visits}</td>
+                  <td className="py-3 pr-4 text-slate-600">{contact.organizationName ?? "—"}</td>
                   <td className="py-3 pr-4 text-slate-600">{contact.lastSiteName ?? "—"}</td>
                   <td className="py-3 text-slate-600">{formatDate(contact.lastSeenAt)}</td>
                 </tr>

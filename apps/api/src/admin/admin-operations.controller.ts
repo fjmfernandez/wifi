@@ -61,6 +61,7 @@ const organizationInputSchema = z.object({
     .transform((value) => value.toUpperCase()),
   name: z.string().trim().min(2).max(160),
   legalName: z.string().trim().max(200).optional(),
+  marketingAccessEnabled: z.coerce.boolean().optional(),
 });
 
 const policyInputSchema = z.object({
