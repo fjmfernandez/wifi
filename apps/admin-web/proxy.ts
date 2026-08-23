@@ -42,6 +42,7 @@ export const config = {
     "/organizaciones/:path*",
     "/sedes/:path*",
     "/red/:path*",
+    "/routerboard/:path*",
     "/portales/:path*",
     "/servicios/:path*",
     "/usuarios/:path*",
