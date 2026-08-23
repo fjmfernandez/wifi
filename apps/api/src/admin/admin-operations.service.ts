@@ -2,7 +2,13 @@ import { randomBytes } from "node:crypto";
 
 import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { deriveScopedKey, generateOpaqueToken, keyedDigest, openSecretText } from "@wifi/security";
+import {
+  deriveScopedKey,
+  generateOpaqueToken,
+  keyedDigest,
+  openSecretText,
+  sealSecret,
+} from "@wifi/security";
 
 import type { AppEnvironment } from "../config/environment.js";
 import { DatabaseService } from "../infrastructure/database.service.js";
@@ -27,6 +33,7 @@ export interface CreateOrganizationInput {
   code: string;
   name: string;
   legalName?: string | undefined;
+  accessEmail?: string | undefined;
   marketingAccessEnabled?: boolean | undefined;
 }
 
@@ -61,6 +68,7 @@ export interface UpdateOrganizationInput {
   code?: string | undefined;
   name?: string | undefined;
   legalName?: string | undefined;
+  accessEmail?: string | undefined;
   marketingAccessEnabled?: boolean | undefined;
 }
 
@@ -96,6 +104,13 @@ export interface UpdatePortalInput {
   body?: string | undefined;
   logoUrl?: string | undefined;
   primaryColor?: string | undefined;
+}
+
+export interface UpdateVoucherBatchInput {
+  name?: string | undefined;
+  expiresAt?: string | undefined;
+  defaultMaxUses?: number | undefined;
+  defaultMaxDevices?: number | undefined;
 }
 
 export interface CreateGatewayLinkInput {
@@ -169,6 +184,7 @@ export class AdminOperationsService {
         code: organization.code,
         name: organization.name,
         legalName: organization.legalName,
+        accessEmail: organization.accessEmail,
         status: organization.status,
         marketingAccessEnabled: organization.marketingAccessEnabled,
         sitesTotal: organization.sites.length,
@@ -185,6 +201,7 @@ export class AdminOperationsService {
           code: input.code,
           name: input.name,
           ...(input.legalName ? { legalName: input.legalName } : {}),
+          ...(input.accessEmail ? { accessEmail: input.accessEmail.toLowerCase() } : {}),
           marketingAccessEnabled: input.marketingAccessEnabled ?? false,
           status: "active",
         },
@@ -194,6 +211,7 @@ export class AdminOperationsService {
         code: organization.code,
         name: organization.name,
         legalName: organization.legalName,
+        accessEmail: organization.accessEmail,
         status: organization.status,
         marketingAccessEnabled: organization.marketingAccessEnabled,
         sitesTotal: 0,
@@ -218,6 +236,9 @@ export class AdminOperationsService {
           ...(input.code === undefined ? {} : { code: input.code }),
           ...(input.name === undefined ? {} : { name: input.name }),
           ...(input.legalName === undefined ? {} : { legalName: input.legalName || null }),
+          ...(input.accessEmail === undefined
+            ? {}
+            : { accessEmail: input.accessEmail ? input.accessEmail.toLowerCase() : null }),
           ...(input.marketingAccessEnabled === undefined
             ? {}
             : { marketingAccessEnabled: input.marketingAccessEnabled }),
@@ -229,6 +250,7 @@ export class AdminOperationsService {
         code: organization.code,
         name: organization.name,
         legalName: organization.legalName,
+        accessEmail: organization.accessEmail,
         status: organization.status,
         marketingAccessEnabled: organization.marketingAccessEnabled,
         sitesTotal: organization.sites.length,
@@ -486,6 +508,11 @@ export class AdminOperationsService {
 
   async archiveGateway(tenantId: string, gatewayId: string): Promise<unknown> {
     return this.database.withTenant(tenantId, async (transaction) => {
+      const current = await transaction.gateway.findFirst({
+        where: { tenantId, id: gatewayId, retiredAt: null },
+        select: { id: true },
+      });
+      if (!current) throw new NotFoundException("Gateway no encontrado");
       const gateway = await transaction.gateway.update({
         where: { tenantId_id: { tenantId, id: gatewayId } },
         data: { retiredAt: new Date(), status: "retired" },
@@ -973,7 +1000,17 @@ export class AdminOperationsService {
         include: {
           site: { select: { name: true, code: true } },
           policyVersion: { include: { policy: { select: { name: true } } } },
-          vouchers: { select: { id: true, state: true, usedCount: true, revokedAt: true } },
+          vouchers: {
+            select: {
+              id: true,
+              state: true,
+              usedCount: true,
+              revokedAt: true,
+              codeCiphertext: true,
+              maxUses: true,
+              maxDevices: true,
+            },
+          },
         },
       });
       return batches.map((batch) => ({
@@ -982,11 +1019,15 @@ export class AdminOperationsService {
         siteName: batch.site.name,
         siteCode: batch.site.code,
         policyName: batch.policyVersion.policy.name,
+        policyLimits: this.describePolicyVersion(batch.policyVersion),
         quantity: batch.quantity,
         available: batch.vouchers.filter(
           (voucher) => voucher.state === "available" && !voucher.revokedAt,
         ).length,
         used: batch.vouchers.filter((voucher) => voucher.usedCount > 0).length,
+        defaultMaxUses: batch.defaultMaxUses,
+        defaultMaxDevices: batch.defaultMaxDevices,
+        reprintable: batch.vouchers.some((voucher) => voucher.codeCiphertext !== null),
         expiresAt: batch.expiresAt.toISOString(),
         createdAt: batch.createdAt.toISOString(),
       }));
@@ -1022,11 +1063,13 @@ export class AdminOperationsService {
         },
       });
       const codes = Array.from({ length: input.quantity }, () => this.generateVoucherCode());
+      const voucherCodeKey = deriveScopedKey(this.dataMasterKey, tenantId, "voucher-codes");
       await transaction.voucher.createMany({
         data: codes.map((code) => ({
           tenantId,
           batchId: batch.id,
           codeHmac: Buffer.from(keyedDigest(code, this.voucherKey, "voucher.code.v1")),
+          codeCiphertext: Buffer.from(sealSecret(code, voucherCodeKey, "voucher.code.v1")),
           displayHint: code.slice(-4),
           state: "available",
           maxUses: input.defaultMaxUses ?? 1,
@@ -1040,14 +1083,136 @@ export class AdminOperationsService {
         siteName: site.name,
         siteCode: site.code,
         policyName: policyVersion.policy.name,
+        policyLimits: this.describePolicyVersion(policyVersion),
         quantity: batch.quantity,
         available: batch.quantity,
         used: 0,
+        defaultMaxUses: batch.defaultMaxUses,
+        defaultMaxDevices: batch.defaultMaxDevices,
+        reprintable: true,
         expiresAt: batch.expiresAt.toISOString(),
         createdAt: batch.createdAt.toISOString(),
         oneTimeCodes: codes,
       };
     });
+  }
+
+  async getVoucherBatchTickets(tenantId: string, batchId: string): Promise<unknown> {
+    return this.database.withTenant(tenantId, async (transaction) => {
+      const batch = await transaction.voucherBatch.findFirst({
+        where: { tenantId, id: batchId },
+        include: {
+          site: { select: { name: true, code: true } },
+          policyVersion: { include: { policy: { select: { name: true } } } },
+          vouchers: { orderBy: { createdAt: "asc" } },
+        },
+      });
+      if (!batch) throw new NotFoundException("Lote de vouchers no encontrado");
+      const voucherCodeKey = deriveScopedKey(this.dataMasterKey, tenantId, "voucher-codes");
+      return {
+        id: batch.id,
+        name: batch.name,
+        siteName: batch.site.name,
+        siteCode: batch.site.code,
+        policyName: batch.policyVersion.policy.name,
+        policyLimits: this.describePolicyVersion(batch.policyVersion),
+        expiresAt: batch.expiresAt.toISOString(),
+        defaultMaxUses: batch.defaultMaxUses,
+        defaultMaxDevices: batch.defaultMaxDevices,
+        vouchers: batch.vouchers.map((voucher) => ({
+          id: voucher.id,
+          code: voucher.codeCiphertext
+            ? openSecretText(Buffer.from(voucher.codeCiphertext), voucherCodeKey, "voucher.code.v1")
+            : null,
+          displayHint: voucher.displayHint,
+          state: voucher.state,
+          usedCount: voucher.usedCount,
+          maxUses: voucher.maxUses,
+          maxDevices: voucher.maxDevices,
+          expiresAt: voucher.expiresAt.toISOString(),
+          revokedAt: voucher.revokedAt?.toISOString() ?? null,
+        })),
+      };
+    });
+  }
+
+  async updateVoucherBatch(
+    tenantId: string,
+    batchId: string,
+    input: UpdateVoucherBatchInput,
+  ): Promise<unknown> {
+    return this.database.withTenant(tenantId, async (transaction) => {
+      const current = await transaction.voucherBatch.findFirst({
+        where: { tenantId, id: batchId },
+      });
+      if (!current) throw new NotFoundException("Lote de vouchers no encontrado");
+      const expiresAt = input.expiresAt ? new Date(input.expiresAt) : undefined;
+      const batch = await transaction.voucherBatch.update({
+        where: { tenantId_id: { tenantId, id: batchId } },
+        data: {
+          ...(input.name === undefined ? {} : { name: input.name }),
+          ...(expiresAt === undefined ? {} : { expiresAt }),
+          ...(input.defaultMaxUses === undefined ? {} : { defaultMaxUses: input.defaultMaxUses }),
+          ...(input.defaultMaxDevices === undefined
+            ? {}
+            : { defaultMaxDevices: input.defaultMaxDevices }),
+        },
+        include: {
+          site: { select: { name: true, code: true } },
+          policyVersion: { include: { policy: { select: { name: true } } } },
+          vouchers: { select: { id: true, state: true, usedCount: true, revokedAt: true } },
+        },
+      });
+      await transaction.voucher.updateMany({
+        where: { tenantId, batchId, usedCount: 0, revokedAt: null },
+        data: {
+          ...(expiresAt === undefined ? {} : { expiresAt }),
+          ...(input.defaultMaxUses === undefined ? {} : { maxUses: input.defaultMaxUses }),
+          ...(input.defaultMaxDevices === undefined ? {} : { maxDevices: input.defaultMaxDevices }),
+        },
+      });
+      return {
+        id: batch.id,
+        name: batch.name,
+        siteName: batch.site.name,
+        siteCode: batch.site.code,
+        policyName: batch.policyVersion.policy.name,
+        policyLimits: this.describePolicyVersion(batch.policyVersion),
+        quantity: batch.quantity,
+        available: batch.vouchers.filter(
+          (voucher) => voucher.state === "available" && !voucher.revokedAt,
+        ).length,
+        used: batch.vouchers.filter((voucher) => voucher.usedCount > 0).length,
+        defaultMaxUses: batch.defaultMaxUses,
+        defaultMaxDevices: batch.defaultMaxDevices,
+        reprintable: true,
+        expiresAt: batch.expiresAt.toISOString(),
+        createdAt: batch.createdAt.toISOString(),
+      };
+    });
+  }
+
+  private describePolicyVersion(version: {
+    downloadKbps: number | null;
+    uploadKbps: number | null;
+    sessionTimeoutSeconds: number | null;
+    quotaBytes: bigint | null;
+    maxConcurrentDevices: number | null;
+  }): string {
+    const mbps = (kbps: number | null) => (kbps ? `${Math.round(kbps / 1000)} Mbps` : "sin límite");
+    const quota = version.quotaBytes
+      ? `${Math.round(Number(version.quotaBytes) / 1024 ** 3)} GB`
+      : "sin cuota";
+    const hours = version.sessionTimeoutSeconds
+      ? `${Math.round(version.sessionTimeoutSeconds / 3600)} h`
+      : "sin caducidad";
+    return [
+      `Bajada ${mbps(version.downloadKbps)}`,
+      `Subida ${mbps(version.uploadKbps)}`,
+      hours,
+      quota,
+      `${version.maxConcurrentDevices ?? 1} dispositivo(s)`,
+    ].join(" · ");
   }
 
   private generateVoucherCode(): string {

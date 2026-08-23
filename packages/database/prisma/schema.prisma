@@ -242,6 +242,7 @@ model Organization {
   legalName              String?   @map("legal_name") @db.VarChar(200)
   status                 String    @default("active") @db.VarChar(24)
   marketingAccessEnabled Boolean   @default(false) @map("marketing_access_enabled")
+  accessEmail            String?   @map("access_email") @db.VarChar(320)
   archivedAt             DateTime? @map("archived_at") @db.Timestamptz(6)
   createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -1182,6 +1183,7 @@ model Voucher {
   tenantId    String    @map("tenant_id") @db.Uuid
   batchId     String    @map("batch_id") @db.Uuid
   codeHmac    Bytes     @map("code_hmac")
+  codeCiphertext Bytes? @map("code_ciphertext")
   displayHint String?   @map("display_hint") @db.VarChar(16)
   state       String    @default("available") @db.VarChar(24)
   maxUses     Int       @default(1) @map("max_uses")

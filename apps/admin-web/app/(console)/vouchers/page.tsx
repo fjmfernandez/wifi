@@ -1,12 +1,23 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Download, FileDown, KeyRound, Plus, Printer, QrCode, RefreshCcw } from "lucide-react";
+import {
+  Download,
+  Eye,
+  FileDown,
+  KeyRound,
+  Pencil,
+  Plus,
+  Printer,
+  QrCode,
+  RefreshCcw,
+} from "lucide-react";
 import { toDataURL } from "qrcode";
 
 import { Badge, Button, Card } from "@wifi/ui";
 
 import { MetricCard } from "@/components/metric-card";
+import { EditDialog } from "@/components/edit-dialog";
 import { PageHeader } from "@/components/page-header";
 import { TableFrame } from "@/components/table-frame";
 import { adminApi, inputClass } from "../admin-api";
@@ -34,12 +45,41 @@ interface VoucherBatchView {
   siteName: string;
   siteCode: string;
   policyName: string;
+  policyLimits: string;
   quantity: number;
   available: number;
   used: number;
+  defaultMaxUses: number;
+  defaultMaxDevices: number;
+  reprintable: boolean;
   expiresAt: string;
   createdAt: string;
   oneTimeCodes?: string[];
+}
+
+interface VoucherCodeView {
+  id: string;
+  code: string | null;
+  displayHint: string | null;
+  state: string;
+  usedCount: number;
+  maxUses: number;
+  maxDevices: number;
+  expiresAt: string;
+  revokedAt: string | null;
+}
+
+interface VoucherBatchTicketsView {
+  id: string;
+  name: string;
+  siteName: string;
+  siteCode: string;
+  policyName: string;
+  policyLimits: string;
+  expiresAt: string;
+  defaultMaxUses: number;
+  defaultMaxDevices: number;
+  vouchers: VoucherCodeView[];
 }
 
 interface VoucherTicket {
@@ -86,7 +126,10 @@ export default function VouchersPage() {
   const [lastCodes, setLastCodes] = useState<string[]>([]);
   const [ticket, setTicket] = useState<VoucherTicket | null>(null);
   const [ticketQr, setTicketQr] = useState<string | null>(null);
+  const [editingBatch, setEditingBatch] = useState<VoucherBatchView | null>(null);
+  const [ticketBatch, setTicketBatch] = useState<VoucherBatchTicketsView | null>(null);
   const [saving, setSaving] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function refresh(): Promise<void> {
@@ -171,6 +214,62 @@ export default function VouchersPage() {
     }
   }
 
+  async function submitEditBatch(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!editingBatch) return;
+    setSavingEdit(true);
+    setError(null);
+    const data = new FormData(event.currentTarget);
+    try {
+      await adminApi<VoucherBatchView>(`/api/v1/admin/voucher-batches/${editingBatch.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: data.get("name"),
+          expiresAt: new Date(String(data.get("expiresAt"))).toISOString(),
+          defaultMaxUses: data.get("defaultMaxUses") || 1,
+          defaultMaxDevices: data.get("defaultMaxDevices") || 1,
+        }),
+      });
+      setEditingBatch(null);
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudo editar el voucher");
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  async function loadTicketBatch(batch: VoucherBatchView): Promise<void> {
+    setError(null);
+    try {
+      const loaded = await adminApi<VoucherBatchTicketsView>(
+        `/api/v1/admin/voucher-batches/${batch.id}/tickets`,
+      );
+      setTicketBatch(loaded);
+      const first = loaded.vouchers.find((voucher) => voucher.code);
+      if (first?.code) showTicket(loaded, first);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudieron cargar los QR");
+    }
+  }
+
+  function showTicket(batch: VoucherBatchTicketsView, voucher: VoucherCodeView): void {
+    if (!voucher.code) {
+      setError("Este voucher es anterior a la versión reimprimible y no guarda el código cifrado.");
+      return;
+    }
+    setTicket({
+      code: voucher.code,
+      batchName: batch.name,
+      siteName: batch.siteName,
+      policyName: batch.policyName,
+      policyLimits: batch.policyLimits,
+      expiresAt: voucher.expiresAt,
+      maxUses: voucher.maxUses,
+      maxDevices: voucher.maxDevices,
+    });
+  }
+
   function downloadCodes(): void {
     const blob = new Blob([lastCodes.join("\n")], { type: "text/plain;charset=utf-8" });
     const href = URL.createObjectURL(blob);
@@ -179,6 +278,12 @@ export default function VouchersPage() {
     link.download = "vouchers-wpass.txt";
     link.click();
     URL.revokeObjectURL(href);
+  }
+
+  function datetimeLocal(value: string): string {
+    const date = new Date(value);
+    const offsetMs = date.getTimezoneOffset() * 60_000;
+    return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
   }
 
   return (
@@ -419,20 +524,63 @@ export default function VouchersPage() {
         </Card>
       ) : null}
 
+      {ticketBatch ? (
+        <Card className="mb-4 border-brand-100 bg-white p-4 print:hidden">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-sm font-extrabold text-slate-900">
+                QR reimprimibles · {ticketBatch.name}
+              </p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                Selecciona un código para verlo arriba y pulsa imprimir. Los vouchers antiguos
+                pueden aparecer sin código si se crearon antes de guardar el código cifrado.
+              </p>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => setTicketBatch(null)}>
+              Cerrar
+            </Button>
+          </div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {ticketBatch.vouchers.map((voucher, index) => (
+              <button
+                key={voucher.id}
+                type="button"
+                onClick={() => showTicket(ticketBatch, voucher)}
+                className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs hover:border-brand-300 hover:bg-brand-50"
+              >
+                <span className="block font-extrabold text-slate-900">
+                  Voucher {index + 1} · {voucher.code ?? `****${voucher.displayHint ?? ""}`}
+                </span>
+                <span className="mt-1 block text-slate-500">
+                  {voucher.state} · usado {voucher.usedCount}/{voucher.maxUses} ·{" "}
+                  {voucher.maxDevices} dispositivo(s)
+                </span>
+              </button>
+            ))}
+          </div>
+        </Card>
+      ) : null}
+
       <TableFrame title="Lotes de vouchers" subtitle={`${batches.length} lotes registrados`}>
         <table className="w-full min-w-[900px] border-collapse text-left">
           <thead>
             <tr className="border-b border-slate-100 bg-slate-50/70">
-              {["Lote", "Sede", "Servicio y límites", "Disponibles", "Usados", "Caduca"].map(
-                (item) => (
-                  <th
-                    key={item}
-                    className="px-5 py-3 text-[10px] font-extrabold uppercase tracking-wider text-slate-400"
-                  >
-                    {item}
-                  </th>
-                ),
-              )}
+              {[
+                "Lote",
+                "Sede",
+                "Servicio y límites",
+                "Disponibles",
+                "Usados",
+                "Caduca",
+                "Acciones",
+              ].map((item) => (
+                <th
+                  key={item}
+                  className="px-5 py-3 text-[10px] font-extrabold uppercase tracking-wider text-slate-400"
+                >
+                  {item}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -445,7 +593,7 @@ export default function VouchersPage() {
                 <td className="px-5 py-4 text-xs text-slate-600">
                   <span className="font-extrabold text-slate-800">{batch.policyName}</span>
                   <span className="mt-1 block text-[11px] leading-4 text-slate-500">
-                    Consulta los límites exactos en Servicios.
+                    {batch.policyLimits}
                   </span>
                 </td>
                 <td className="px-5 py-4">
@@ -457,11 +605,25 @@ export default function VouchersPage() {
                 <td className="px-5 py-4 text-xs text-slate-600">
                   {new Date(batch.expiresAt).toLocaleString("es-ES")}
                 </td>
+                <td className="px-5 py-4">
+                  <div className="flex flex-wrap gap-1">
+                    <Button variant="ghost" size="sm" onClick={() => setEditingBatch(batch)}>
+                      <Pencil className="size-3.5" /> Editar
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => void loadTicketBatch(batch)}
+                    >
+                      <Eye className="size-3.5" /> Ver QR
+                    </Button>
+                  </div>
+                </td>
               </tr>
             ))}
             {batches.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-5 py-10 text-center text-sm text-slate-500">
+                <td colSpan={7} className="px-5 py-10 text-center text-sm text-slate-500">
                   Crea una sede y una política para emitir los primeros vouchers.
                 </td>
               </tr>
@@ -469,6 +631,64 @@ export default function VouchersPage() {
           </tbody>
         </table>
       </TableFrame>
+
+      <EditDialog
+        open={editingBatch !== null}
+        title="Editar voucher o lote"
+        description="Modifica el nombre, caducidad, usos y dispositivos en una sola ventana. Se aplicará a vouchers no usados."
+        saving={savingEdit}
+        onClose={() => setEditingBatch(null)}
+        onSubmit={() =>
+          (
+            document.getElementById("edit-voucher-batch-form") as HTMLFormElement | null
+          )?.requestSubmit()
+        }
+      >
+        {editingBatch ? (
+          <form
+            id="edit-voucher-batch-form"
+            onSubmit={(event) => void submitEditBatch(event)}
+            className="grid gap-3"
+          >
+            <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+              Nombre
+              <input name="name" required defaultValue={editingBatch.name} className={inputClass} />
+            </label>
+            <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+              Caduca el
+              <input
+                name="expiresAt"
+                required
+                type="datetime-local"
+                defaultValue={datetimeLocal(editingBatch.expiresAt)}
+                className={inputClass}
+              />
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+                Usos permitidos
+                <input
+                  name="defaultMaxUses"
+                  type="number"
+                  min={1}
+                  defaultValue={editingBatch.defaultMaxUses}
+                  className={inputClass}
+                />
+              </label>
+              <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+                Dispositivos
+                <input
+                  name="defaultMaxDevices"
+                  type="number"
+                  min={1}
+                  defaultValue={editingBatch.defaultMaxDevices}
+                  className={inputClass}
+                />
+              </label>
+            </div>
+          </form>
+        ) : null}
+      </EditDialog>
     </>
   );
 }

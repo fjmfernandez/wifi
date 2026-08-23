@@ -8,8 +8,19 @@ import type { AppEnvironment } from "../config/environment.js";
 import { AdminOperationsService } from "./admin-operations.service.js";
 import { AdminSessionReader } from "./admin-session.js";
 
+const uuidLikeSchema = z
+  .string()
+  .trim()
+  .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+
+const logoDataUrlSchema = z
+  .string()
+  .trim()
+  .max(300_000)
+  .regex(/^data:image\/(?:png|jpeg|webp|svg\+xml);base64,[A-Za-z0-9+/=]+$/);
+
 const siteInputSchema = z.object({
-  organizationId: z.uuid().optional(),
+  organizationId: uuidLikeSchema.optional(),
   code: z
     .string()
     .trim()
@@ -27,7 +38,7 @@ const siteInputSchema = z.object({
 });
 
 const gatewayInputSchema = z.object({
-  siteId: z.uuid(),
+  siteId: uuidLikeSchema,
   name: z.string().trim().min(2).max(120),
   nasIdentifier: z.string().trim().min(3).max(128),
   model: z.string().trim().max(100).optional(),
@@ -61,6 +72,7 @@ const organizationInputSchema = z.object({
     .transform((value) => value.toUpperCase()),
   name: z.string().trim().min(2).max(160),
   legalName: z.string().trim().max(200).optional(),
+  accessEmail: z.email().max(320).optional(),
   marketingAccessEnabled: z.coerce.boolean().optional(),
 });
 
@@ -77,7 +89,7 @@ const portalInputSchema = z.object({
   name: z.string().trim().min(2).max(160),
   headline: z.string().trim().max(160).optional(),
   body: z.string().trim().max(500).optional(),
-  logoUrl: z.url().max(500).optional(),
+  logoUrl: z.union([z.url().max(500), logoDataUrlSchema]).optional(),
   primaryColor: z
     .string()
     .trim()
@@ -86,8 +98,8 @@ const portalInputSchema = z.object({
 });
 
 const voucherBatchInputSchema = z.object({
-  siteId: z.uuid(),
-  policyVersionId: z.uuid(),
+  siteId: uuidLikeSchema,
+  policyVersionId: uuidLikeSchema,
   name: z.string().trim().min(2).max(160),
   quantity: z.coerce.number().int().min(1).max(250),
   expiresAt: z.string().datetime(),
@@ -95,11 +107,19 @@ const voucherBatchInputSchema = z.object({
   defaultMaxDevices: z.coerce.number().int().min(1).max(20).optional(),
 });
 
-const idParamSchema = z.uuid();
+const idParamSchema = uuidLikeSchema;
 const siteUpdateSchema = siteInputSchema.partial();
 const organizationUpdateSchema = organizationInputSchema.partial();
 const policyUpdateSchema = policyInputSchema.partial();
 const portalUpdateSchema = portalInputSchema.partial();
+const voucherBatchUpdateSchema = voucherBatchInputSchema
+  .pick({
+    name: true,
+    expiresAt: true,
+    defaultMaxUses: true,
+    defaultMaxDevices: true,
+  })
+  .partial();
 
 @Controller("admin")
 export class AdminOperationsController {
@@ -311,6 +331,15 @@ export class AdminOperationsController {
     return this.operations.listVoucherBatches(session.tenantId);
   }
 
+  @Get("voucher-batches/:id/tickets")
+  async getVoucherBatchTickets(
+    @Req() request: FastifyRequest,
+    @Param("id") id: string,
+  ): Promise<unknown> {
+    const session = await this.sessions.requireSession(request, ["voucher.reprint"]);
+    return this.operations.getVoucherBatchTickets(session.tenantId, idParamSchema.parse(id));
+  }
+
   @Post("voucher-batches")
   async createVoucherBatch(
     @Req() request: FastifyRequest,
@@ -320,6 +349,20 @@ export class AdminOperationsController {
     return this.operations.createVoucherBatch(
       session.tenantId,
       voucherBatchInputSchema.parse(body),
+    );
+  }
+
+  @Patch("voucher-batches/:id")
+  async updateVoucherBatch(
+    @Req() request: FastifyRequest,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ): Promise<unknown> {
+    const session = await this.sessions.requireSession(request, ["voucher.extend"]);
+    return this.operations.updateVoucherBatch(
+      session.tenantId,
+      idParamSchema.parse(id),
+      voucherBatchUpdateSchema.parse(body),
     );
   }
 }

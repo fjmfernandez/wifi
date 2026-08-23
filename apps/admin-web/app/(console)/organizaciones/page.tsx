@@ -16,6 +16,7 @@ interface OrganizationView {
   code: string;
   name: string;
   legalName: string | null;
+  accessEmail: string | null;
   status: string;
   marketingAccessEnabled: boolean;
   sitesTotal: number;
@@ -56,6 +57,7 @@ export default function OrganizationsPage() {
           code: data.get("code"),
           name: data.get("name"),
           legalName: data.get("legalName") || undefined,
+          accessEmail: data.get("accessEmail") || undefined,
           marketingAccessEnabled: data.get("marketingAccessEnabled") === "on",
         }),
       });
@@ -81,6 +83,7 @@ export default function OrganizationsPage() {
           name: data.get("name"),
           code: data.get("code"),
           legalName: data.get("legalName") || undefined,
+          accessEmail: data.get("accessEmail") || undefined,
           marketingAccessEnabled: data.get("marketingAccessEnabled") === "on",
         }),
       });
@@ -128,10 +131,16 @@ export default function OrganizationsPage() {
         className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
       >
         <h2 className="text-sm font-extrabold text-slate-900">Crear organización</h2>
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
           <input name="name" required placeholder="Nombre comercial" className={inputClass} />
           <input name="code" required placeholder="Código, ej. HOTEL01" className={inputClass} />
           <input name="legalName" placeholder="Razón social opcional" className={inputClass} />
+          <input
+            name="accessEmail"
+            type="email"
+            placeholder="Email acceso cliente"
+            className={inputClass}
+          />
         </div>
         <label className="mt-4 flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs font-bold text-slate-700">
           <input
@@ -158,16 +167,22 @@ export default function OrganizationsPage() {
         <table className="w-full min-w-[760px] border-collapse text-left">
           <thead>
             <tr className="border-b border-slate-100 bg-slate-50/70">
-              {["Organización", "Código", "Sedes", "Marketing", "Estado", "Acciones"].map(
-                (item) => (
-                  <th
-                    key={item}
-                    className="px-5 py-3 text-[10px] font-extrabold uppercase tracking-wider text-slate-400"
-                  >
-                    {item}
-                  </th>
-                ),
-              )}
+              {[
+                "Organización",
+                "Código",
+                "Email acceso",
+                "Sedes",
+                "Marketing",
+                "Estado",
+                "Acciones",
+              ].map((item) => (
+                <th
+                  key={item}
+                  className="px-5 py-3 text-[10px] font-extrabold uppercase tracking-wider text-slate-400"
+                >
+                  {item}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -189,6 +204,9 @@ export default function OrganizationsPage() {
                   </span>
                 </td>
                 <td className="px-5 py-4 font-mono text-xs text-slate-600">{organization.code}</td>
+                <td className="px-5 py-4 text-xs font-semibold text-slate-600">
+                  {organization.accessEmail ?? "—"}
+                </td>
                 <td className="px-5 py-4 text-xs font-semibold text-slate-600">
                   {organization.sitesTotal}
                 </td>
@@ -269,6 +287,19 @@ export default function OrganizationsPage() {
                 defaultValue={editingOrganization.legalName ?? ""}
                 className={inputClass}
               />
+            </label>
+            <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+              Email de acceso cliente
+              <input
+                name="accessEmail"
+                type="email"
+                defaultValue={editingOrganization.accessEmail ?? ""}
+                className={inputClass}
+              />
+              <span className="font-medium leading-5 text-slate-500">
+                Email operativo que tendrá acceso a Marketing, usuarios, dispositivos y vouchers
+                cuando se active la invitación/login de clientes.
+              </span>
             </label>
             <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs font-bold text-slate-700">
               <input

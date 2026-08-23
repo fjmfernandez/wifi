@@ -37,6 +37,27 @@ interface PortalView {
   createdAt: string;
 }
 
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => resolve(String(reader.result)));
+    reader.addEventListener("error", () => reject(new Error("No se pudo leer el logo")));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function logoValue(data: FormData): Promise<string | undefined> {
+  const file = data.get("logoFile");
+  if (file instanceof File && file.size > 0) {
+    if (!["image/png", "image/jpeg", "image/webp", "image/svg+xml"].includes(file.type)) {
+      throw new Error("El logo debe ser PNG, JPG, WEBP o SVG");
+    }
+    if (file.size > 200_000) throw new Error("El logo no puede superar 200 KB");
+    return fileToDataUrl(file);
+  }
+  return String(data.get("logoUrl") || "") || undefined;
+}
+
 export default function PortalsPage() {
   const [portals, setPortals] = useState<PortalView[]>([]);
   const [saving, setSaving] = useState(false);
@@ -68,7 +89,7 @@ export default function PortalsPage() {
           name: data.get("name"),
           headline: data.get("headline") || undefined,
           body: data.get("body") || undefined,
-          logoUrl: data.get("logoUrl") || undefined,
+          logoUrl: await logoValue(data),
           primaryColor: data.get("primaryColor") || undefined,
         }),
       });
@@ -94,7 +115,7 @@ export default function PortalsPage() {
           name: data.get("name"),
           headline: data.get("headline") || undefined,
           body: data.get("body") || undefined,
-          logoUrl: data.get("logoUrl") || undefined,
+          logoUrl: await logoValue(data),
           primaryColor: data.get("primaryColor") || undefined,
         }),
       });
@@ -161,6 +182,12 @@ export default function PortalsPage() {
             type="url"
             placeholder="Logo público https://..."
             className={inputClass}
+          />
+          <input
+            name="logoFile"
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/svg+xml"
+            className={`${inputClass} py-2`}
           />
           <input
             name="primaryColor"
@@ -311,6 +338,18 @@ export default function PortalsPage() {
                   defaultValue={editingPortal.logoUrl ?? ""}
                   className={inputClass}
                 />
+              </label>
+              <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+                Subir logo
+                <input
+                  name="logoFile"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                  className={`${inputClass} py-2`}
+                />
+                <span className="font-medium leading-5 text-slate-500">
+                  Opcional. Si subes archivo sustituye a la URL.
+                </span>
               </label>
               <label className="grid gap-1.5 text-xs font-bold text-slate-700">
                 Color principal
