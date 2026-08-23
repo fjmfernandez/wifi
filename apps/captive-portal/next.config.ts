@@ -11,7 +11,6 @@ const workspaceRoot = resolve(process.cwd(), "..", "..");
 
 const apiOrigin = process.env.INTERNAL_API_URL ?? "http://localhost:3001";
 const developmentEval = process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : "";
-const upgradeInsecure = process.env.NODE_ENV === "production" ? "; upgrade-insecure-requests" : "";
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1"],
@@ -36,7 +35,7 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: "Content-Security-Policy",
-            value: `default-src 'self'; script-src 'self' 'unsafe-inline'${developmentEval}; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self' https:${upgradeInsecure}`,
+            value: `default-src 'self'; script-src 'self' 'unsafe-inline'${developmentEval}; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self' http: https:`,
           },
           { key: "Referrer-Policy", value: "no-referrer" },
           { key: "X-Content-Type-Options", value: "nosniff" },
