@@ -60,14 +60,14 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       DATABASE_URL: postgresql://wifi_api:${POSTGRES_API_PASSWORD:?POSTGRES_API_PASSWORD is required}@postgres:5432/wifi_entelsat
       REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379/0
-      CORS_ORIGINS: https://wpass.es,https://captive.wpass.es
+      CORS_ORIGINS: https://panel.wpass.es,https://captive.wpass.es
       TRUST_PROXY: "true"
       SWAGGER_ENABLED: "false"
       DEMO_MODE: "false"
       CAPTIVE_PUBLIC_ORIGIN: https://captive.wpass.es
       CAPTIVE_STATE_HMAC_KEY_BASE64: ${CAPTIVE_STATE_HMAC_KEY_BASE64:-}
       CAPTIVE_IDENTIFIER_HMAC_KEY_BASE64: ${CAPTIVE_IDENTIFIER_HMAC_KEY_BASE64:-}
-      ADMIN_PUBLIC_ORIGIN: https://wpass.es
+      ADMIN_PUBLIC_ORIGIN: https://panel.wpass.es
       ADMIN_EMAIL_HMAC_KEY_BASE64: ${ADMIN_EMAIL_HMAC_KEY_BASE64:-}
       ADMIN_SESSION_HMAC_KEY_BASE64: ${ADMIN_SESSION_HMAC_KEY_BASE64:-}
       DATA_ENCRYPTION_MASTER_KEY_BASE64: ${DATA_ENCRYPTION_MASTER_KEY_BASE64:-}

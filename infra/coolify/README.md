@@ -20,7 +20,7 @@ El `build.context` de los servicios debe permanecer como `.`. Coolify ejecuta Co
 
 Cuando Coolify cargue el Compose, asigna:
 
-- servicio `admin`, puerto interno `3000`: `https://wpass.es:3000`;
+- servicio `admin`, puerto interno `3000`: `https://panel.wpass.es`;
 - servicio `captive`, puerto interno `3002`: `https://captive.wpass.es:3002`.
 
 El puerto indica a qué puerto interno debe dirigir Coolify; el navegador seguirá usando HTTPS 443. No asignes dominio ni puerto público a `api`, `worker`, `migrate`, `postgres` o `redis`.
@@ -33,7 +33,7 @@ Carga todas las variables de `.env.example` desde el almacén de secretos de Coo
 
 ## Orden de puesta en marcha
 
-1. Configura DNS `A/AAAA` de `wpass.es` y `captive.wpass.es` hacia Coolify.
+1. Configura DNS `A/AAAA` de `panel.wpass.es` y `captive.wpass.es` hacia Coolify.
 2. Crea la pila sin desplegar y carga secretos.
 3. La tarea `migrate` usa exclusivamente `wifi_bootstrap`, crea o rota los logins runtime y aplica migraciones antes de arrancar la API y el worker. `wifi_migrator` es un rol interno `NOLOGIN`; la API y el worker nunca reciben el secreto bootstrap.
 4. Despliega y exige healthchecks verdes antes de enrutar tráfico.
