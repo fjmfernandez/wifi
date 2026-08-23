@@ -2,6 +2,7 @@ FROM node:24.15.0-bookworm-slim
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
+ENV CI=true
 # This image is the only one that still runs pnpm at runtime, and it does so as the
 # unprivileged `node` user on a network with no egress. Corepack caches prepared package
 # managers under $COREPACK_HOME (default ~/.cache/node/corepack), so preparing as root and
