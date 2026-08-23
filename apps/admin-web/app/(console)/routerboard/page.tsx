@@ -54,6 +54,15 @@ function routerQuote(value: string): string {
   return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 }
 
+function routerFileQuote(value: string): string {
+  return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"').replaceAll("$", "\\$")}"`;
+}
+
+function normalizeRouterToken(value: string, fallback: string): string {
+  const normalized = value.trim().replace(/[^A-Za-z0-9_.-]/g, "-");
+  return normalized.length > 0 ? normalized : fallback;
+}
+
 function buildLoginHtml(locator: string): string {
   return `<!doctype html>
 <html lang="es">
@@ -62,20 +71,54 @@ function buildLoginHtml(locator: string): string {
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="referrer" content="no-referrer">
   <title>WPass WiFi</title>
+  <style>
+    body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f8fafc;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#0f172a}
+    .box{max-width:360px;margin:24px;padding:24px;border:1px solid #e2e8f0;border-radius:24px;background:white;box-shadow:0 24px 80px rgba(15,23,42,.10);text-align:center}
+    .logo{display:inline-grid;place-items:center;width:48px;height:48px;border-radius:16px;background:#0f172a;color:white;font-weight:900;letter-spacing:-.08em}
+    button{width:100%;height:48px;border:0;border-radius:14px;background:#0f766e;color:white;font-weight:800}
+    p{color:#64748b;font-size:14px;line-height:1.55}
+  </style>
 </head>
 <body>
-  <form id="wpass-captive" action="https://captive.wpass.es/api/v1/captive/session/start" method="post">
+  <main class="box">
+    <span class="logo">WP</span>
+    <h1>Conectando con WPass…</h1>
+    <p>Estamos preparando el portal seguro para registrar el acceso WiFi.</p>
+    <form id="wpass-captive" action="https://captive.wpass.es/api/v1/captive/session/start" method="post">
     <input type="hidden" name="gatewayLocator" value="${locator}">
     <input type="hidden" name="mac" value="$(mac)">
+    <input type="hidden" name="macEsc" value="$(mac-esc)">
     <input type="hidden" name="ip" value="$(ip)">
     <input type="hidden" name="linkLogin" value="$(link-login)">
     <input type="hidden" name="linkOrig" value="$(link-orig)">
     <input type="hidden" name="error" value="$(error)">
-    <noscript><button type="submit">Continuar</button></noscript>
-  </form>
-  <script>document.getElementById("wpass-captive").submit()</script>
+    <input type="hidden" name="chapId" value="$(chap-id)">
+    <input type="hidden" name="chapChallenge" value="$(chap-challenge)">
+    <input type="hidden" name="linkLoginOnly" value="$(link-login-only)">
+    <input type="hidden" name="linkOrigEsc" value="$(link-orig-esc)">
+    <button type="submit">Abrir portal WiFi</button>
+    </form>
+  </main>
+  <script>
+    window.setTimeout(function(){document.getElementById("wpass-captive").submit()}, 250);
+  </script>
 </body>
 </html>`;
+}
+
+function buildApiJson(): string {
+  return `{
+  "provider": "wpass",
+  "captive": $(if logged-in == 'yes')false$(else)true$(endif),
+  "user-portal-url": "$(link-login-only)",
+$(if session-timeout-secs != 0)
+  "seconds-remaining": $(session-timeout-secs),
+$(endif)
+$(if remain-bytes-total)
+  "bytes-remaining": $(remain-bytes-total),
+$(endif)
+  "can-extend-session": true
+}`;
 }
 
 function buildRouterScript({
@@ -87,14 +130,23 @@ function buildRouterScript({
   material: LinkMaterial;
   values: Record<string, string>;
 }): string {
-  const sstpName = values.sstpName || "wpass-sstp";
-  const hotspotProfile = values.hotspotProfile || "default";
+  const sstpName = normalizeRouterToken(values.sstpName || "sstp-wpass", "sstp-wpass");
+  const hotspotProfile = normalizeRouterToken(values.hotspotProfile || "wpass", "wpass");
+  const hotspotName = normalizeRouterToken(values.hotspotName || "wpass-hotspot", "wpass-hotspot");
+  const hotspotInterface = values.hotspotInterface || "wifi";
+  const hotspotAddress = values.hotspotAddress || "192.168.50.1";
+  const htmlDirectory = normalizeRouterToken(values.htmlDirectory || "hotspot", "hotspot");
   const hotspotDnsName = material.hotspotDnsName;
   const radiusServerIp = values.radiusServerIp || "10.255.0.1";
+  const captiveHost = "captive.wpass.es";
+  const captiveIp = values.captiveIp || "62.84.190.174";
+  const loginHtml = buildLoginHtml(material.gatewayLocator).replace(/\s+/g, " ").trim();
+  const apiJson = buildApiJson().replace(/\s+/g, " ").trim();
   return [
-    "# WPass WiFi · vinculación RouterBOARD por SSTP Client",
-    "# Pegar en Terminal de MikroTik después de revisar interfaces y perfil HotSpot.",
+    "# WPass WiFi · alta rapida RouterBOARD por SSTP Client + HotSpot + RADIUS",
+    "# Pegar en Terminal de MikroTik tras revisar la interfaz de clientes y la IP del HotSpot.",
     `# Gateway SaaS: ${gateway.name} · NAS-Identifier: ${gateway.nasIdentifier}`,
+    "# El script es idempotente: elimina/recrea solo objetos marcados como WPass.",
     "",
     ':log warning "WPass: creando SSTP client y RADIUS HotSpot"',
     `/interface sstp-client remove [find name=${routerQuote(sstpName)}]`,
@@ -103,6 +155,11 @@ function buildRouterScript({
     )} port=${values.sstpPort || "4443"} user=${routerQuote(values.sstpUser)} password=${routerQuote(
       values.sstpPassword,
     )} authentication=mschap2 profile=default-encryption add-default-route=no verify-server-certificate=no disabled=no`,
+    `/ip dns set allow-remote-requests=yes`,
+    `/ip dns static remove [find comment=${routerQuote("WPass captive")}]`,
+    `/ip dns static add name=${routerQuote(captiveHost)} address=${captiveIp} ttl=1h comment=${routerQuote(
+      "WPass captive",
+    )}`,
     `/ip route remove [find comment=${routerQuote("WPass RADIUS via SSTP")}]`,
     `/ip route add dst-address=${radiusServerIp}/32 gateway=${routerQuote(
       sstpName,
@@ -114,20 +171,48 @@ function buildRouterScript({
     )} authentication-port=1812 accounting-port=1813 timeout=1500ms comment=${routerQuote(
       "WPass SaaS",
     )}`,
-    `/ip hotspot profile set [find name=${routerQuote(
+    `/radius incoming set accept=yes port=1700`,
+    `:if ([:len [/ip hotspot profile find name=${routerQuote(hotspotProfile)}]] = 0) do={ /ip hotspot profile add name=${routerQuote(
       hotspotProfile,
-    )}] use-radius=yes radius-accounting=yes radius-interim-update=5m login-by=http-pap,https dns-name=${routerQuote(
+    )} hotspot-address=${hotspotAddress} dns-name=${routerQuote(
       hotspotDnsName,
-    )}`,
+    )} html-directory=${routerQuote(
+      htmlDirectory,
+    )} use-radius=yes radius-accounting=yes radius-interim-update=5m login-by=http-pap,mac-cookie }`,
+    `/ip hotspot profile set [find name=${routerQuote(hotspotProfile)}] hotspot-address=${hotspotAddress} dns-name=${routerQuote(
+      hotspotDnsName,
+    )} html-directory=${routerQuote(
+      htmlDirectory,
+    )} use-radius=yes radius-accounting=yes radius-interim-update=5m login-by=http-pap,mac-cookie`,
+    `:if ([:len [/ip hotspot find name=${routerQuote(hotspotName)}]] = 0) do={ /ip hotspot add name=${routerQuote(
+      hotspotName,
+    )} interface=${routerQuote(hotspotInterface)} profile=${routerQuote(
+      hotspotProfile,
+    )} disabled=no } else={ /ip hotspot set [find name=${routerQuote(hotspotName)}] interface=${routerQuote(
+      hotspotInterface,
+    )} profile=${routerQuote(hotspotProfile)} disabled=no }`,
     `/ip hotspot walled-garden remove [find comment=${routerQuote("WPass captive")}]`,
-    `/ip hotspot walled-garden add dst-host=${routerQuote(
-      "captive.wpass.es",
-    )} comment=${routerQuote("WPass captive")}`,
+    `/ip hotspot walled-garden add dst-host=${routerQuote(captiveHost)} comment=${routerQuote(
+      "WPass captive",
+    )}`,
+    `/ip hotspot walled-garden add dst-host=${routerQuote("wpass.es")} comment=${routerQuote(
+      "WPass captive",
+    )}`,
+    `:do { /file make-directory ${routerQuote(htmlDirectory)} } on-error={}`,
+    `/file remove [find name=${routerQuote(`${htmlDirectory}/login.html`)}]`,
+    `/file add name=${routerQuote(`${htmlDirectory}/login.html`)} contents=${routerFileQuote(
+      loginHtml,
+    )}`,
+    `/file remove [find name=${routerQuote(`${htmlDirectory}/api.json`)}]`,
+    `/file add name=${routerQuote(`${htmlDirectory}/api.json`)} contents=${routerFileQuote(
+      apiJson,
+    )}`,
     `/tool fetch url=${routerQuote(
       `https://captive.wpass.es/api/v1/captive/gateway/ping?gatewayLocator=${material.gatewayLocator}`,
     )} mode=https output=user check-certificate=no`,
-    ':log warning "WPass: sube el login.html generado a Files/hotspot/login.html"',
+    ':log warning "WPass: alta terminada. Si el fetch anterior finalizo, pulsa Comprobar vinculacion en WPass."',
     "/radius print detail",
+    `/ip hotspot profile print detail where name=${routerQuote(hotspotProfile)}`,
     `/ping ${radiusServerIp} count=3`,
   ].join("\n");
 }
@@ -214,6 +299,7 @@ export default function RouterBoardLinkPage() {
       ? buildRouterScript({ gateway: selectedGateway, material, values: formValues })
       : "";
   const loginHtml = material ? buildLoginHtml(material.gatewayLocator) : "";
+  const apiJson = material ? buildApiJson() : "";
   const sstpUsersLine =
     material && formValues.sstpUser && formValues.sstpPassword
       ? `${formValues.sstpUser}\t${formValues.sstpPassword}\t${material.tunnelClientIp}`
@@ -356,7 +442,7 @@ export default function RouterBoardLinkPage() {
               />
               <input
                 name="sstpName"
-                defaultValue="wpass-sstp"
+                defaultValue="sstp-wpass"
                 placeholder="Nombre interfaz SSTP"
                 className={inputClass}
               />
@@ -385,8 +471,29 @@ export default function RouterBoardLinkPage() {
               <input
                 name="hotspotProfile"
                 required
-                defaultValue="default"
+                defaultValue="wpass"
                 placeholder="Perfil HotSpot"
+                className={inputClass}
+              />
+              <input
+                name="hotspotName"
+                required
+                defaultValue="wpass-hotspot"
+                placeholder="Servidor HotSpot"
+                className={inputClass}
+              />
+              <input
+                name="hotspotInterface"
+                required
+                defaultValue="wifi"
+                placeholder="Interfaz clientes, ej. wifi/bridge"
+                className={inputClass}
+              />
+              <input
+                name="hotspotAddress"
+                required
+                defaultValue="192.168.50.1"
+                placeholder="IP HotSpot"
                 className={inputClass}
               />
               <input
@@ -394,6 +501,20 @@ export default function RouterBoardLinkPage() {
                 required
                 defaultValue="login.wpass.local"
                 placeholder="DNS HotSpot local"
+                className={inputClass}
+              />
+              <input
+                name="htmlDirectory"
+                required
+                defaultValue="hotspot"
+                placeholder="Carpeta HTML"
+                className={inputClass}
+              />
+              <input
+                name="captiveIp"
+                required
+                defaultValue="62.84.190.174"
+                placeholder="IP pública WPass"
                 className={inputClass}
               />
             </div>
@@ -415,8 +536,18 @@ export default function RouterBoardLinkPage() {
             <li>
               Pulsa “Comprobar vinculación”. Si el RB llegó al SaaS, verás el estado en verde.
             </li>
-            <li>Sube el `login.html` generado a Files/hotspot/login.html.</li>
+            <li>
+              El script ya crea `Files/hotspot/login.html` y `Files/hotspot/api.json`. Si tu
+              RouterOS no permite escribir ficheros por script, copia esos bloques manualmente.
+            </li>
           </ol>
+          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600">
+            <p className="font-extrabold text-slate-800">Equivalencia con el ejemplo Hotelinking</p>
+            <p className="mt-1">
+              SSTP client → `sstp-wpass`; perfil HotSpot → `wpass`; DNS local → `login.wpass.local`;
+              carpeta HTML → `hotspot`; portal cloud → `captive.wpass.es`.
+            </p>
+          </div>
           <p className="mt-4 rounded-xl bg-amber-50 p-3 text-xs font-semibold leading-5 text-amber-800">
             El secreto RADIUS solo aparece al generar. Guárdalo en Coolify; no se guarda visible en
             la base de datos.
@@ -467,6 +598,11 @@ export default function RouterBoardLinkPage() {
             title="login.html MikroTik"
             value={loginHtml}
             onCopy={() => void copy(loginHtml, "login.html")}
+          />
+          <OutputBlock
+            title="api.json MikroTik"
+            value={apiJson}
+            onCopy={() => void copy(apiJson, "api.json")}
           />
           <Card className="p-4">
             <h2 className="flex items-center gap-2 text-sm font-extrabold text-slate-900">
