@@ -36,6 +36,7 @@ export interface CaptivePublicContext {
   legalVersions: CaptiveGatewayContext["legalVersions"];
   availableMethods: CaptiveGatewayContext["availableMethods"];
   languages: readonly ("es" | "en")[];
+  portal?: CaptiveGatewayContext["portal"];
 }
 
 export interface CaptiveGatewayPingResult {
@@ -141,6 +142,7 @@ export class CaptiveService {
       legalVersions: attempt.gateway.legalVersions,
       availableMethods: attempt.gateway.availableMethods,
       languages: attempt.gateway.legalVersions.map((version) => version.locale),
+      ...(attempt.gateway.portal ? { portal: attempt.gateway.portal } : {}),
     };
   }
 

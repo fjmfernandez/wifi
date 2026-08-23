@@ -25,6 +25,13 @@ type CaptiveContext = {
   legalVersions: CaptiveLegalVersionRef[];
   availableMethods: LoginMethod[];
   languages: ("es" | "en")[];
+  portal?: {
+    name: string;
+    headline: string;
+    body: string;
+    logoUrl?: string;
+    primaryColor?: string;
+  };
 };
 
 const demoContext: CaptiveContext = {
@@ -36,12 +43,20 @@ const demoContext: CaptiveContext = {
   ],
   availableMethods: ["click", "email", "voucher"],
   languages: ["es", "en"],
+  portal: {
+    name: "Hotel Miramar",
+    headline: "Bienvenido al WiFi",
+    body: "Introduce tus datos para acceder a Internet.",
+    primaryColor: "#0d9488",
+  },
 };
 
 type PortalCopy = {
   description: string;
   click: string;
   email: string;
+  firstNameLabel: string;
+  lastNameLabel: string;
   voucher: string;
   pin: string;
   emailLabel: string;
@@ -59,6 +74,8 @@ const copy: Record<"es" | "en", PortalCopy> = {
     description: "Conéctate al WiFi de huéspedes de forma segura.",
     click: "Acceso directo",
     email: "Correo",
+    firstNameLabel: "Nombre",
+    lastNameLabel: "Apellidos",
     voucher: "Voucher",
     pin: "PIN",
     emailLabel: "Tu correo electrónico",
@@ -74,6 +91,8 @@ const copy: Record<"es" | "en", PortalCopy> = {
     description: "Connect securely to our guest WiFi.",
     click: "Quick access",
     email: "Email",
+    firstNameLabel: "First name",
+    lastNameLabel: "Last name",
     voucher: "Voucher",
     pin: "PIN",
     emailLabel: "Your email address",
@@ -99,6 +118,7 @@ export function CaptiveFlow() {
   const [error, setError] = useState<string>();
   const [authorization, setAuthorization] = useState<CaptiveAuthorizationResult>();
   const t = copy[language];
+  const primaryColor = context?.portal?.primaryColor ?? "#0d9488";
   const selectedLegalVersion =
     context?.legalVersions.find((version) => version.locale === language) ??
     context?.legalVersions[0];
@@ -177,7 +197,13 @@ export function CaptiveFlow() {
     const payload = {
       state,
       method,
-      ...(method === "email" ? { email: values.get("email") } : {}),
+      ...(method === "email"
+        ? {
+            firstName: values.get("firstName"),
+            lastName: values.get("lastName"),
+            email: values.get("email"),
+          }
+        : {}),
       ...(method === "voucher"
         ? { voucher: String(values.get("voucher") ?? "").toUpperCase() }
         : {}),
@@ -272,14 +298,23 @@ export function CaptiveFlow() {
     <>
       <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 sm:px-9">
         <div className="flex items-center gap-2">
-          <span className="grid size-8 place-items-center rounded-xl bg-slate-900 text-[9px] font-black tracking-tight text-white">
-            {context.siteName
-              .split(/\s+/)
-              .slice(0, 2)
-              .map((part) => part[0])
-              .join("")
-              .toUpperCase()}
-          </span>
+          {context.portal?.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={context.portal.logoUrl}
+              alt={context.portal.name}
+              className="size-8 rounded-xl object-contain"
+            />
+          ) : (
+            <span className="grid size-8 place-items-center rounded-xl bg-slate-900 text-[9px] font-black tracking-tight text-white">
+              {context.siteName
+                .split(/\s+/)
+                .slice(0, 2)
+                .map((part) => part[0])
+                .join("")
+                .toUpperCase()}
+            </span>
+          )}
           <span>
             <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-slate-800">
               {context.siteName}
@@ -303,11 +338,14 @@ export function CaptiveFlow() {
             <Wifi className="size-5" />
           </span>
           <h1 className="mt-4 text-2xl font-extrabold tracking-[-0.035em] text-slate-950">
-            {language === "es"
-              ? `Bienvenido a ${context.siteName}`
-              : `Welcome to ${context.siteName}`}
+            {context.portal?.headline ??
+              (language === "es"
+                ? `Bienvenido a ${context.siteName}`
+                : `Welcome to ${context.siteName}`)}
           </h1>
-          <p className="mt-2 text-sm leading-6 text-slate-500">{t.description}</p>
+          <p className="mt-2 text-sm leading-6 text-slate-500">
+            {context.portal?.body ?? t.description}
+          </p>
         </div>
         <div
           className={`mt-6 grid rounded-xl bg-slate-100 p-1 ${
@@ -340,6 +378,7 @@ export function CaptiveFlow() {
                   setError(undefined);
                 }}
                 className={`flex min-h-12 flex-col items-center justify-center gap-1 rounded-lg px-1 text-[10px] font-bold transition sm:flex-row sm:text-xs ${method === id ? "bg-white text-hotel-700 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+                style={method === id ? { color: primaryColor } : undefined}
               >
                 <Icon className="size-3.5" />
                 {label}
@@ -355,20 +394,50 @@ export function CaptiveFlow() {
             </div>
           ) : null}
           {method === "email" ? (
-            <label className="grid gap-1.5 text-xs font-bold text-slate-700">
-              {t.emailLabel}
-              <span className="relative">
-                <Mail className="pointer-events-none absolute left-3.5 top-3.5 size-4 text-slate-400" />
-                <input
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  className="h-11 w-full rounded-xl border border-slate-200 pl-10 pr-3 text-sm font-normal outline-none focus:border-hotel-500"
-                  placeholder="nombre@ejemplo.com"
-                />
-              </span>
-            </label>
+            <div className="grid gap-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+                  {t.firstNameLabel}
+                  <input
+                    name="firstName"
+                    type="text"
+                    autoComplete="given-name"
+                    required
+                    minLength={1}
+                    maxLength={80}
+                    className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-normal outline-none focus:border-hotel-500"
+                    placeholder={language === "es" ? "Tu nombre" : "Your name"}
+                  />
+                </label>
+                <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+                  {t.lastNameLabel}
+                  <input
+                    name="lastName"
+                    type="text"
+                    autoComplete="family-name"
+                    required
+                    minLength={1}
+                    maxLength={120}
+                    className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-normal outline-none focus:border-hotel-500"
+                    placeholder={language === "es" ? "Tus apellidos" : "Your surname"}
+                  />
+                </label>
+              </div>
+              <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+                {t.emailLabel}
+                <span className="relative">
+                  <Mail className="pointer-events-none absolute left-3.5 top-3.5 size-4 text-slate-400" />
+                  <input
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    className="h-11 w-full rounded-xl border border-slate-200 pl-10 pr-3 text-sm font-normal outline-none focus:border-hotel-500"
+                    placeholder="nombre@ejemplo.com"
+                  />
+                </span>
+              </label>
+            </div>
           ) : null}
           {method === "voucher" ? (
             <label className="grid gap-1.5 text-xs font-bold text-slate-700">
@@ -449,6 +518,7 @@ export function CaptiveFlow() {
             type="submit"
             disabled={pending}
             className="flex h-12 items-center justify-center gap-2 rounded-xl bg-hotel-600 px-5 text-sm font-bold text-white shadow-lg shadow-hotel-900/15 transition hover:bg-hotel-700 disabled:opacity-60"
+            style={{ backgroundColor: primaryColor }}
           >
             {pending ? (
               <LoaderCircle className="size-4 animate-spin" />

@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 
 import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { generateOpaqueToken, keyedDigest } from "@wifi/security";
+import { deriveScopedKey, generateOpaqueToken, keyedDigest, openSecretText } from "@wifi/security";
 
 import type { AppEnvironment } from "../config/environment.js";
 import { DatabaseService } from "../infrastructure/database.service.js";
@@ -42,6 +42,8 @@ export interface CreatePortalInput {
   name: string;
   headline?: string | undefined;
   body?: string | undefined;
+  logoUrl?: string | undefined;
+  primaryColor?: string | undefined;
 }
 
 export interface CreateVoucherBatchInput {
@@ -90,6 +92,8 @@ export interface UpdatePortalInput {
   name?: string | undefined;
   headline?: string | undefined;
   body?: string | undefined;
+  logoUrl?: string | undefined;
+  primaryColor?: string | undefined;
 }
 
 export interface CreateGatewayLinkInput {
@@ -106,10 +110,32 @@ function isUniqueConstraintError(error: unknown): boolean {
   );
 }
 
+function readJsonObject(value: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function readJsonRecord(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function readOptionalString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
 @Injectable()
 export class AdminOperationsService {
   private readonly voucherKey: Buffer;
   private readonly captiveIdentifierKey: Buffer;
+  private readonly dataMasterKey: Buffer;
 
   constructor(
     private readonly database: DatabaseService,
@@ -121,6 +147,10 @@ export class AdminOperationsService {
     );
     this.captiveIdentifierKey = Buffer.from(
       config.getOrThrow<string>("CAPTIVE_IDENTIFIER_HMAC_KEY_BASE64"),
+      "base64url",
+    );
+    this.dataMasterKey = Buffer.from(
+      config.getOrThrow<string>("DATA_ENCRYPTION_MASTER_KEY_BASE64"),
       "base64url",
     );
   }
@@ -671,12 +701,18 @@ export class AdminOperationsService {
           versions: {
             orderBy: { version: "desc" },
             take: 1,
-            include: { publications: { include: { site: { select: { name: true } } } } },
+            include: {
+              blocks: { orderBy: { displayOrder: "asc" } },
+              publications: { include: { site: { select: { name: true } } } },
+            },
           },
         },
       });
       return portals.map((portal) => {
         const version = portal.versions[0];
+        const hero = version?.blocks.find((block) => block.kind === "hero");
+        const heroProps = readJsonRecord(hero?.props);
+        const theme = readJsonRecord(version?.theme);
         return {
           id: portal.id,
           name: portal.name,
@@ -685,6 +721,10 @@ export class AdminOperationsService {
           version: version?.version ?? null,
           status: version?.status ?? "draft",
           fallbackLocale: version?.fallbackLocale ?? "es",
+          headline: readOptionalString(heroProps["headline"]),
+          body: readOptionalString(heroProps["body"]),
+          logoUrl: readOptionalString(theme["logoUrl"]),
+          primaryColor: readOptionalString(theme["primaryColor"]),
           siteNames: version?.publications.map((publication) => publication.site.name) ?? [],
           createdAt: portal.createdAt.toISOString(),
         };
@@ -704,7 +744,11 @@ export class AdminOperationsService {
           version: 1,
           status: "draft",
           fallbackLocale: "es",
-          theme: { brand: "entelsat" },
+          theme: {
+            brand: "entelsat",
+            ...(input.logoUrl ? { logoUrl: input.logoUrl } : {}),
+            ...(input.primaryColor ? { primaryColor: input.primaryColor } : {}),
+          },
         },
       });
       await transaction.portalBlock.createMany({
@@ -736,6 +780,10 @@ export class AdminOperationsService {
         version: version.version,
         status: version.status,
         fallbackLocale: version.fallbackLocale,
+        headline: input.headline ?? "Bienvenido al WiFi",
+        body: input.body ?? "Acepta las condiciones para acceder a Internet.",
+        logoUrl: input.logoUrl ?? null,
+        primaryColor: input.primaryColor ?? null,
         siteNames: [],
         createdAt: portal.createdAt.toISOString(),
       };
@@ -773,6 +821,21 @@ export class AdminOperationsService {
                 theme: currentVersion?.theme ?? { brand: "entelsat" },
               },
             });
+      await transaction.portalVersion.update({
+        where: { tenantId_id: { tenantId, id: version.id } },
+        data: {
+          theme: {
+            ...((typeof version.theme === "object" &&
+            version.theme !== null &&
+            !Array.isArray(version.theme)
+              ? version.theme
+              : {}) as Record<string, unknown>),
+            brand: "entelsat",
+            ...(input.logoUrl !== undefined ? { logoUrl: input.logoUrl } : {}),
+            ...(input.primaryColor !== undefined ? { primaryColor: input.primaryColor } : {}),
+          },
+        },
+      });
       await transaction.portalBlock.deleteMany({
         where: { tenantId, portalVersionId: version.id },
       });
@@ -805,6 +868,10 @@ export class AdminOperationsService {
         version: version.version,
         status: version.status,
         fallbackLocale: version.fallbackLocale,
+        headline: input.headline ?? "Bienvenido al WiFi",
+        body: input.body ?? "Acepta las condiciones para acceder a Internet.",
+        logoUrl: input.logoUrl ?? null,
+        primaryColor: input.primaryColor ?? null,
         siteNames: [],
         createdAt: portal.createdAt.toISOString(),
       };
@@ -818,6 +885,62 @@ export class AdminOperationsService {
         data: { archivedAt: new Date() },
       });
       return { id: portal.id, archived: true };
+    });
+  }
+
+  async listMarketingContacts(tenantId: string): Promise<unknown[]> {
+    return this.database.withTenant(tenantId, async (transaction) => {
+      const tenantKey = deriveScopedKey(this.dataMasterKey, tenantId, "identity-data");
+      const users = await transaction.endUser.findMany({
+        where: {
+          tenantId,
+          anonymizedAt: null,
+          identifiers: { some: { kind: "email" } },
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 500,
+        include: {
+          identifiers: { where: { kind: "email" }, take: 1 },
+          consentEvents: {
+            where: { purpose: { code: "marketing" } },
+            orderBy: { occurredAt: "desc" },
+            take: 1,
+            include: { purpose: { select: { code: true, name: true } } },
+          },
+          authorizations: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            include: { gateway: { include: { site: { select: { name: true } } } } },
+          },
+          _count: { select: { authorizations: true } },
+        },
+      });
+
+      return users.map((user) => {
+        const emailIdentifier = user.identifiers[0];
+        const email = emailIdentifier
+          ? openSecretText(Buffer.from(emailIdentifier.ciphertext), tenantKey, "identity.email.v1")
+          : null;
+        const profile = user.profileCiphertext
+          ? readJsonObject(
+              openSecretText(Buffer.from(user.profileCiphertext), tenantKey, "identity.profile.v1"),
+            )
+          : {};
+        const latestAuthorization = user.authorizations[0];
+        const latestConsent = user.consentEvents[0];
+        return {
+          id: user.id,
+          firstName: readOptionalString(profile["firstName"]),
+          lastName: readOptionalString(profile["lastName"]),
+          email,
+          marketingConsent: latestConsent?.decision ?? "not_requested",
+          consentAt: latestConsent?.occurredAt.toISOString() ?? null,
+          visits: user._count.authorizations,
+          lastSiteName: latestAuthorization?.gateway.site.name ?? null,
+          lastSeenAt: latestAuthorization?.createdAt.toISOString() ?? null,
+          createdAt: user.createdAt.toISOString(),
+        };
+      });
     });
   }
 

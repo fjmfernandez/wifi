@@ -43,6 +43,10 @@ function readString(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+function readNonEmptyString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
 function readInt(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isSafeInteger(value) ? value : fallback;
 }
@@ -310,7 +314,10 @@ export class PrismaCaptiveRepository implements CaptiveRepository {
       }
 
       const endUserId = request.email
-        ? await this.resolveEmailIdentity(transaction, route.tenantId, request.email)
+        ? await this.resolveEmailIdentity(transaction, route.tenantId, request.email, {
+            firstName: request.firstName,
+            lastName: request.lastName,
+          })
         : undefined;
       if (endUserId && attempt.deviceId) {
         const activeLink = await transaction.endUserDeviceLink.findFirst({
@@ -428,7 +435,7 @@ export class PrismaCaptiveRepository implements CaptiveRepository {
               endUserId,
               purposeId: purpose.id,
               legalVersionId: legal.id,
-              decision: request.marketingConsent ? "granted" : "denied",
+              decision: request.marketingConsent ? "granted" : "rejected",
               evidence: { authorizationId, source: "captive_portal" },
             },
           });
@@ -543,6 +550,43 @@ export class PrismaCaptiveRepository implements CaptiveRepository {
     const legal = legalVersions.find((version) => version.locale === "es") ?? legalVersions[0];
     const availableMethods = methods.map((method) => method.kind).filter(isLoginMethod);
     if (!legal || availableMethods.length === 0) return undefined;
+    const publication = await transaction.portalPublication.findFirst({
+      where: {
+        tenantId: route.tenantId,
+        siteId: gateway.siteId,
+        startsAt: { lte: now },
+        OR: [{ endsAt: null }, { endsAt: { gt: now } }],
+        portalVersion: { status: "published" },
+      },
+      orderBy: { startsAt: "desc" },
+      include: {
+        portalVersion: {
+          include: {
+            portal: { select: { name: true } },
+            blocks: { orderBy: { displayOrder: "asc" } },
+          },
+        },
+      },
+    });
+    const fallbackPortal = publication
+      ? undefined
+      : await transaction.portal.findFirst({
+          where: { tenantId: route.tenantId, archivedAt: null },
+          orderBy: { createdAt: "desc" },
+          include: {
+            versions: {
+              orderBy: { version: "desc" },
+              take: 1,
+              include: { blocks: { orderBy: { displayOrder: "asc" } } },
+            },
+          },
+        });
+    const portalVersion = publication?.portalVersion ?? fallbackPortal?.versions[0];
+    const heroBlock = portalVersion?.blocks.find((block) => block.kind === "hero");
+    const heroProps = asObject(heroBlock?.props);
+    const theme = asObject(portalVersion?.theme);
+    const logoUrl = readNonEmptyString(theme["logoUrl"]);
+    const primaryColor = readNonEmptyString(theme["primaryColor"]);
     return {
       tenantId: route.tenantId,
       gatewayId: gateway.id,
@@ -553,6 +597,21 @@ export class PrismaCaptiveRepository implements CaptiveRepository {
       legalVersions,
       allowedLoginOrigins: route.allowedLoginOrigins ?? [],
       availableMethods,
+      ...(portalVersion
+        ? {
+            portal: {
+              name:
+                publication?.portalVersion.portal.name ?? fallbackPortal?.name ?? gateway.site.name,
+              headline:
+                readNonEmptyString(heroProps["headline"]) ?? `Bienvenido a ${gateway.site.name}`,
+              body:
+                readNonEmptyString(heroProps["body"]) ??
+                "Introduce tus datos para acceder al WiFi.",
+              ...(logoUrl ? { logoUrl } : {}),
+              ...(primaryColor ? { primaryColor } : {}),
+            },
+          }
+        : {}),
     };
   }
 
@@ -598,6 +657,7 @@ export class PrismaCaptiveRepository implements CaptiveRepository {
     transaction: TenantTransaction,
     tenantId: string,
     email: string,
+    profile?: { firstName?: string | undefined; lastName?: string | undefined },
   ): Promise<string> {
     const identitySpace = await transaction.identitySpace.findFirst({
       where: { tenantId },
@@ -619,12 +679,49 @@ export class PrismaCaptiveRepository implements CaptiveRepository {
     if (existing) {
       await transaction.endUser.update({
         where: { id: existing.endUserId },
-        data: { retentionAnchor: new Date() },
+        data: {
+          retentionAnchor: new Date(),
+          ...(profile?.firstName && profile.lastName
+            ? {
+                profileCiphertext: dbBytes(
+                  sealSecret(
+                    JSON.stringify({
+                      firstName: profile.firstName,
+                      lastName: profile.lastName,
+                      updatedAt: new Date().toISOString(),
+                    }),
+                    tenantKey,
+                    "identity.profile.v1",
+                  ),
+                ),
+                profileKeyVersion: "env-v1",
+              }
+            : {}),
+        },
       });
       return existing.endUserId;
     }
     const endUser = await transaction.endUser.create({
-      data: { tenantId, identitySpaceId: identitySpace.id },
+      data: {
+        tenantId,
+        identitySpaceId: identitySpace.id,
+        ...(profile?.firstName && profile.lastName
+          ? {
+              profileCiphertext: dbBytes(
+                sealSecret(
+                  JSON.stringify({
+                    firstName: profile.firstName,
+                    lastName: profile.lastName,
+                    updatedAt: new Date().toISOString(),
+                  }),
+                  tenantKey,
+                  "identity.profile.v1",
+                ),
+              ),
+              profileKeyVersion: "env-v1",
+            }
+          : {}),
+      },
       select: { id: true },
     });
     await transaction.endUserIdentifier.create({

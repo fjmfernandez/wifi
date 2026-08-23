@@ -18,6 +18,13 @@ export interface CaptiveGatewayContext {
   legalVersions: readonly CaptiveLegalVersionRef[];
   allowedLoginOrigins: readonly string[];
   availableMethods: readonly LoginMethod[];
+  portal?: {
+    name: string;
+    headline: string;
+    body: string;
+    logoUrl?: string;
+    primaryColor?: string;
+  };
 }
 
 export interface CaptiveGatewaySeen {

@@ -19,20 +19,20 @@ model Tenant {
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  memberships        TenantMembership[]
-  roles              TenantRole[]
-  organizations      Organization[]
-  siteGroups         SiteGroup[]
-  accessPolicies     AccessPolicy[]
-  portals            Portal[]
-  processingPurposes ProcessingPurpose[]
-  legalDocuments     LegalDocument[]
-  identitySpaces     IdentitySpace[]
-  blockedEntities    BlockedEntity[]
-  idempotencyKeys    IdempotencyKey[]
-  outboxEvents       OutboxEvent[]
-  exports            Export[]
-  auditLogs          AuditLog[]
+  memberships               TenantMembership[]
+  roles                     TenantRole[]
+  organizations             Organization[]
+  siteGroups                SiteGroup[]
+  accessPolicies            AccessPolicy[]
+  portals                   Portal[]
+  processingPurposes        ProcessingPurpose[]
+  legalDocuments            LegalDocument[]
+  identitySpaces            IdentitySpace[]
+  blockedEntities           BlockedEntity[]
+  idempotencyKeys           IdempotencyKey[]
+  outboxEvents              OutboxEvent[]
+  exports                   Export[]
+  auditLogs                 AuditLog[]
   siteAgentEnrollmentTokens SiteAgentEnrollmentToken[]
   siteAgentIdentities       SiteAgentIdentity[]
 
@@ -295,17 +295,17 @@ model Site {
   createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  organization       Organization        @relation(fields: [tenantId, organizationId], references: [tenantId, id], onDelete: Restrict)
-  configParentGroup  SiteGroup?          @relation("SiteConfigParent", fields: [tenantId, configParentGroupId], references: [tenantId, id], onDelete: Restrict)
-  groupMemberships   SiteGroupSite[]
-  zones              Zone[]
-  gateways           Gateway[]
-  roleAssignments    RoleAssignment[]
-  policyAssignments  PolicyAssignment[]
-  loginMethods       LoginMethod[]
-  portalPublications PortalPublication[]
-  voucherBatches     VoucherBatch[]
-  authorizedDevices  AuthorizedDevice[]
+  organization              Organization               @relation(fields: [tenantId, organizationId], references: [tenantId, id], onDelete: Restrict)
+  configParentGroup         SiteGroup?                 @relation("SiteConfigParent", fields: [tenantId, configParentGroupId], references: [tenantId, id], onDelete: Restrict)
+  groupMemberships          SiteGroupSite[]
+  zones                     Zone[]
+  gateways                  Gateway[]
+  roleAssignments           RoleAssignment[]
+  policyAssignments         PolicyAssignment[]
+  loginMethods              LoginMethod[]
+  portalPublications        PortalPublication[]
+  voucherBatches            VoucherBatch[]
+  authorizedDevices         AuthorizedDevice[]
   siteAgentEnrollmentTokens SiteAgentEnrollmentToken[]
 
   @@unique([tenantId, id])
@@ -385,18 +385,18 @@ model Gateway {
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  site                 Site                      @relation(fields: [tenantId, siteId], references: [tenantId, id], onDelete: Restrict)
-  zoneBindings         GatewayZoneBinding[]
-  secretVersions       GatewaySecretVersion[]
-  configRevisions      GatewayConfigRevision[]
-  captiveAttempts      CaptiveAttempt[]
-  accessAuthorizations AccessAuthorization[]
-  radiusSessions       RadiusSession[]
-  radiusCredentials    RadiusRuntimeCredential[]
-  nasRegistry          RadiusNasRegistry?
-  accountingInbox      RadiusAccountingInbox[]
-  postAuthInbox        RadiusPostAuthInbox[]
-  captiveLocators      GatewayCaptiveLocator[]
+  site                      Site                       @relation(fields: [tenantId, siteId], references: [tenantId, id], onDelete: Restrict)
+  zoneBindings              GatewayZoneBinding[]
+  secretVersions            GatewaySecretVersion[]
+  configRevisions           GatewayConfigRevision[]
+  captiveAttempts           CaptiveAttempt[]
+  accessAuthorizations      AccessAuthorization[]
+  radiusSessions            RadiusSession[]
+  radiusCredentials         RadiusRuntimeCredential[]
+  nasRegistry               RadiusNasRegistry?
+  accountingInbox           RadiusAccountingInbox[]
+  postAuthInbox             RadiusPostAuthInbox[]
+  captiveLocators           GatewayCaptiveLocator[]
   siteAgentEnrollmentTokens SiteAgentEnrollmentToken[]
   siteAgentIdentities       SiteAgentIdentity[]
 
@@ -434,7 +434,7 @@ model SiteAgentEnrollmentToken {
   tenantId   String    @map("tenant_id") @db.Uuid
   siteId     String    @map("site_id") @db.Uuid
   gatewayId  String    @map("gateway_id") @db.Uuid
-  identityId String    @default(dbgenerated("uuidv7()")) @unique @map("identity_id") @db.Uuid
+  identityId String    @unique @default(dbgenerated("uuidv7()")) @map("identity_id") @db.Uuid
   tokenHash  Bytes     @unique @map("token_hash")
   expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
   consumedAt DateTime? @map("consumed_at") @db.Timestamptz(6)
@@ -497,25 +497,25 @@ model SiteAgentIdentity {
 }
 
 model SiteAgentCommand {
-  id             String    @id @db.Uuid
-  tenantId       String    @map("tenant_id") @db.Uuid
-  siteId         String    @map("site_id") @db.Uuid
-  gatewayId      String    @map("gateway_id") @db.Uuid
-  identityId     String    @map("identity_id") @db.Uuid
-  protocolVersion Int      @map("protocol_version") @db.SmallInt
-  sequence       BigInt
-  type           String    @db.VarChar(80)
-  payload        Json      @db.JsonB
-  issuedAt       DateTime  @map("issued_at") @db.Timestamptz(6)
-  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(6)
-  signature      String    @db.VarChar(688)
-  commandDigest  String    @map("command_digest") @db.Char(64)
-  state          String    @default("queued") @db.VarChar(24)
-  leaseCount     Int       @default(0) @map("lease_count")
-  leasedAt       DateTime? @map("leased_at") @db.Timestamptz(6)
-  leaseExpiresAt DateTime? @map("lease_expires_at") @db.Timestamptz(6)
-  completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  id              String    @id @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  siteId          String    @map("site_id") @db.Uuid
+  gatewayId       String    @map("gateway_id") @db.Uuid
+  identityId      String    @map("identity_id") @db.Uuid
+  protocolVersion Int       @map("protocol_version") @db.SmallInt
+  sequence        BigInt
+  type            String    @db.VarChar(80)
+  payload         Json      @db.JsonB
+  issuedAt        DateTime  @map("issued_at") @db.Timestamptz(6)
+  expiresAt       DateTime  @map("expires_at") @db.Timestamptz(6)
+  signature       String    @db.VarChar(688)
+  commandDigest   String    @map("command_digest") @db.Char(64)
+  state           String    @default("queued") @db.VarChar(24)
+  leaseCount      Int       @default(0) @map("lease_count")
+  leasedAt        DateTime? @map("leased_at") @db.Timestamptz(6)
+  leaseExpiresAt  DateTime? @map("lease_expires_at") @db.Timestamptz(6)
+  completedAt     DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   identity SiteAgentIdentity       @relation(fields: [tenantId, identityId, siteId, gatewayId], references: [tenantId, id, siteId, gatewayId], onDelete: Restrict)
   result   SiteAgentCommandResult?
@@ -935,14 +935,16 @@ model IdentitySpace {
 }
 
 model EndUser {
-  id              String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  tenantId        String    @map("tenant_id") @db.Uuid
-  identitySpaceId String    @map("identity_space_id") @db.Uuid
-  status          String    @default("active") @db.VarChar(24)
-  retentionAnchor DateTime  @default(now()) @map("retention_anchor") @db.Timestamptz(6)
-  anonymizedAt    DateTime? @map("anonymized_at") @db.Timestamptz(6)
-  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId          String    @map("tenant_id") @db.Uuid
+  identitySpaceId   String    @map("identity_space_id") @db.Uuid
+  status            String    @default("active") @db.VarChar(24)
+  profileCiphertext Bytes?    @map("profile_ciphertext")
+  profileKeyVersion String?   @map("profile_key_version") @db.VarChar(80)
+  retentionAnchor   DateTime  @default(now()) @map("retention_anchor") @db.Timestamptz(6)
+  anonymizedAt      DateTime? @map("anonymized_at") @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   identitySpace    IdentitySpace         @relation(fields: [tenantId, identitySpaceId], references: [tenantId, id], onDelete: Restrict)
   identifiers      EndUserIdentifier[]

@@ -46,6 +46,7 @@ export const config = {
     "/portales/:path*",
     "/servicios/:path*",
     "/usuarios/:path*",
+    "/marketing/:path*",
     "/sesiones/:path*",
     "/vouchers/:path*",
     "/dispositivos/:path*",

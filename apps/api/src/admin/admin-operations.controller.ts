@@ -76,6 +76,12 @@ const portalInputSchema = z.object({
   name: z.string().trim().min(2).max(160),
   headline: z.string().trim().max(160).optional(),
   body: z.string().trim().max(500).optional(),
+  logoUrl: z.url().max(500).optional(),
+  primaryColor: z
+    .string()
+    .trim()
+    .regex(/^#[0-9a-f]{6}$/i)
+    .optional(),
 });
 
 const voucherBatchInputSchema = z.object({
@@ -290,6 +296,12 @@ export class AdminOperationsController {
   async archivePortal(@Req() request: FastifyRequest, @Param("id") id: string): Promise<unknown> {
     const session = await this.sessions.requireSession(request, ["portal.delete"]);
     return this.operations.archivePortal(session.tenantId, idParamSchema.parse(id));
+  }
+
+  @Get("marketing/contacts")
+  async listMarketingContacts(@Req() request: FastifyRequest): Promise<unknown[]> {
+    const session = await this.sessions.requireSession(request, ["consent.read"]);
+    return this.operations.listMarketingContacts(session.tenantId);
   }
 
   @Get("voucher-batches")

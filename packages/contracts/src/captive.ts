@@ -57,6 +57,8 @@ export const captiveAuthorizeSchema = z
   .object({
     state: z.string().min(32).max(2048),
     method: loginMethodSchema,
+    firstName: z.string().trim().min(1).max(80).optional(),
+    lastName: z.string().trim().min(1).max(120).optional(),
     email: z.email().max(320).optional(),
     pin: z
       .string()
@@ -73,6 +75,20 @@ export const captiveAuthorizeSchema = z
   .superRefine((value, context) => {
     if (value.method === "email" && !value.email) {
       context.addIssue({ code: "custom", path: ["email"], message: "El email es obligatorio" });
+    }
+    if (value.method === "email" && !value.firstName) {
+      context.addIssue({
+        code: "custom",
+        path: ["firstName"],
+        message: "El nombre es obligatorio",
+      });
+    }
+    if (value.method === "email" && !value.lastName) {
+      context.addIssue({
+        code: "custom",
+        path: ["lastName"],
+        message: "Los apellidos son obligatorios",
+      });
     }
     if (value.method === "pin" && !value.pin) {
       context.addIssue({ code: "custom", path: ["pin"], message: "El PIN es obligatorio" });

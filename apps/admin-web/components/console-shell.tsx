@@ -10,6 +10,7 @@ import {
   CircleUserRound,
   FileCheck2,
   KeyRound,
+  Megaphone,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -43,6 +44,7 @@ const primaryNavigation: NavigationItem[] = [
 
 const operationsNavigation: NavigationItem[] = [
   { href: "/usuarios", label: "Usuarios", icon: UsersRound },
+  { href: "/marketing", label: "Marketing", icon: Megaphone },
   { href: "/sesiones", label: "Sesiones", icon: Activity },
   { href: "/vouchers", label: "Vouchers", icon: FileCheck2 },
   { href: "/dispositivos", label: "Autorizados y bloqueos", icon: ShieldBan },

@@ -27,6 +27,10 @@ interface PortalView {
   version: number | null;
   status: string;
   fallbackLocale: string;
+  headline: string | null;
+  body: string | null;
+  logoUrl: string | null;
+  primaryColor: string | null;
   siteNames: string[];
   createdAt: string;
 }
@@ -59,6 +63,8 @@ export default function PortalsPage() {
           name: data.get("name"),
           headline: data.get("headline") || undefined,
           body: data.get("body") || undefined,
+          logoUrl: data.get("logoUrl") || undefined,
+          primaryColor: data.get("primaryColor") || undefined,
         }),
       });
       event.currentTarget.reset();
@@ -76,12 +82,20 @@ export default function PortalsPage() {
     const headline = window.prompt("Título del portal", "Bienvenido al WiFi");
     const body = window.prompt(
       "Texto del portal",
-      "Acepta las condiciones para acceder a Internet.",
+      portal.body ?? "Acepta las condiciones para acceder a Internet.",
     );
+    const logoUrl = window.prompt("URL del logo público https://", portal.logoUrl ?? "");
+    const primaryColor = window.prompt("Color principal HEX", portal.primaryColor ?? "#0d9488");
     try {
       await adminApi<PortalView>(`/api/v1/admin/portals/${portal.id}`, {
         method: "PATCH",
-        body: JSON.stringify({ name, headline: headline || undefined, body: body || undefined }),
+        body: JSON.stringify({
+          name,
+          headline: headline || undefined,
+          body: body || undefined,
+          logoUrl: logoUrl || undefined,
+          primaryColor: primaryColor || undefined,
+        }),
       });
       await refresh();
     } catch (cause) {
@@ -138,6 +152,18 @@ export default function PortalsPage() {
             className={inputClass}
           />
           <input name="body" placeholder="Texto corto para el cliente" className={inputClass} />
+          <input
+            name="logoUrl"
+            type="url"
+            placeholder="Logo público https://..."
+            className={inputClass}
+          />
+          <input
+            name="primaryColor"
+            pattern="^#[0-9a-fA-F]{6}$"
+            placeholder="Color principal #0d9488"
+            className={inputClass}
+          />
         </div>
         <Button type="submit" className="mt-4" disabled={saving}>
           <Plus className="size-4" /> {saving ? "Creando…" : "Nuevo portal"}
@@ -150,14 +176,28 @@ export default function PortalsPage() {
             <div className="relative h-52 overflow-hidden bg-gradient-to-br from-[#0d385f] via-[#196f91] to-[#23a9ad]">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_65%_20%,rgba(255,255,255,.25),transparent_30%)]" />
               <div className="absolute left-1/2 top-1/2 w-44 -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white/95 p-4 text-center shadow-2xl">
-                <span className="mx-auto grid size-9 place-items-center rounded-xl bg-slate-900 text-[10px] font-black text-white">
-                  WiFi
-                </span>
-                <p className="mt-2 text-[10px] font-extrabold text-slate-900">{portal.name}</p>
-                <p className="mt-1 text-[7px] leading-3 text-slate-400">
-                  Conéctate al servicio WiFi de la sede
+                {portal.logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={portal.logoUrl}
+                    alt={portal.name}
+                    className="mx-auto size-9 rounded-xl object-contain"
+                  />
+                ) : (
+                  <span className="mx-auto grid size-9 place-items-center rounded-xl bg-slate-900 text-[10px] font-black text-white">
+                    WiFi
+                  </span>
+                )}
+                <p className="mt-2 text-[10px] font-extrabold text-slate-900">
+                  {portal.headline ?? portal.name}
                 </p>
-                <span className="mt-3 block rounded-md bg-brand-600 py-1.5 text-[7px] font-bold text-white">
+                <p className="mt-1 text-[7px] leading-3 text-slate-400">
+                  {portal.body ?? "Conéctate al servicio WiFi de la sede"}
+                </p>
+                <span
+                  className="mt-3 block rounded-md bg-brand-600 py-1.5 text-[7px] font-bold text-white"
+                  style={portal.primaryColor ? { backgroundColor: portal.primaryColor } : undefined}
+                >
                   Acceder a Internet
                 </span>
               </div>
