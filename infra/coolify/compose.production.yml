@@ -34,6 +34,8 @@ services:
     environment:
       INTERNAL_API_URL: http://api:3001
       NEXT_PUBLIC_DEMO_MODE: "false"
+      PORT: "3002"
+      HOSTNAME: 0.0.0.0
     expose:
       - "3002"
     depends_on:
