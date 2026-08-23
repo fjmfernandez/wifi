@@ -409,7 +409,7 @@ export class PrismaCaptiveRepository implements CaptiveRepository {
           attribute: attribute.attribute,
           operator: attribute.op,
           value: attribute.value,
-          priority,
+          priority: priority + 1,
         })),
       });
       await transaction.legalAcceptance.create({
