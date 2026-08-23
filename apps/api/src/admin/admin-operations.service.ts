@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -106,6 +106,10 @@ export interface UpdatePortalInput {
   primaryColor?: string | undefined;
 }
 
+export interface PublishPortalInput {
+  siteId: string;
+}
+
 export interface UpdateVoucherBatchInput {
   name?: string | undefined;
   expiresAt?: string | undefined;
@@ -146,6 +150,10 @@ function readJsonRecord(value: unknown): Record<string, unknown> {
 
 function readOptionalString(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function snapshotHash(value: unknown): string {
+  return createHash("sha256").update(JSON.stringify(value), "utf8").digest("hex");
 }
 
 @Injectable()
@@ -739,7 +747,10 @@ export class AdminOperationsService {
             take: 1,
             include: {
               blocks: { orderBy: { displayOrder: "asc" } },
-              publications: { include: { site: { select: { name: true } } } },
+              publications: {
+                orderBy: { startsAt: "desc" },
+                include: { site: { select: { id: true, name: true } } },
+              },
             },
           },
         },
@@ -761,7 +772,19 @@ export class AdminOperationsService {
           body: readOptionalString(heroProps["body"]),
           logoUrl: readOptionalString(theme["logoUrl"]),
           primaryColor: readOptionalString(theme["primaryColor"]),
-          siteNames: version?.publications.map((publication) => publication.site.name) ?? [],
+          publications:
+            version?.publications.map((publication) => ({
+              id: publication.id,
+              siteId: publication.siteId,
+              siteName: publication.site.name,
+              startsAt: publication.startsAt.toISOString(),
+              endsAt: publication.endsAt?.toISOString() ?? null,
+              active: publication.startsAt <= new Date() && !publication.endsAt,
+            })) ?? [],
+          siteNames:
+            version?.publications
+              .filter((publication) => publication.startsAt <= new Date() && !publication.endsAt)
+              .map((publication) => publication.site.name) ?? [],
           createdAt: portal.createdAt.toISOString(),
         };
       });
@@ -820,6 +843,7 @@ export class AdminOperationsService {
         body: input.body ?? "Acepta las condiciones para acceder a Internet.",
         logoUrl: input.logoUrl ?? null,
         primaryColor: input.primaryColor ?? null,
+        publications: [],
         siteNames: [],
         createdAt: portal.createdAt.toISOString(),
       };
@@ -908,8 +932,91 @@ export class AdminOperationsService {
         body: input.body ?? "Acepta las condiciones para acceder a Internet.",
         logoUrl: input.logoUrl ?? null,
         primaryColor: input.primaryColor ?? null,
+        publications: [],
         siteNames: [],
         createdAt: portal.createdAt.toISOString(),
+      };
+    });
+  }
+
+  async publishPortal(
+    tenantId: string,
+    portalId: string,
+    input: PublishPortalInput,
+  ): Promise<unknown> {
+    return this.database.withTenant(tenantId, async (transaction) => {
+      const now = new Date();
+      const site = await transaction.site.findFirst({
+        where: { tenantId, id: input.siteId, archivedAt: null },
+        select: { id: true, name: true },
+      });
+      if (!site) throw new NotFoundException("Sede no encontrada");
+
+      const portal = await transaction.portal.findFirst({
+        where: { tenantId, id: portalId, archivedAt: null },
+        include: {
+          versions: {
+            orderBy: { version: "desc" },
+            take: 1,
+            include: { blocks: { orderBy: { displayOrder: "asc" } } },
+          },
+        },
+      });
+      if (!portal) throw new NotFoundException("Portal no encontrado");
+      const version = portal.versions[0];
+      if (!version) throw new NotFoundException("El portal no tiene una versión publicable");
+
+      await transaction.portalPublication.updateMany({
+        where: {
+          tenantId,
+          siteId: site.id,
+          zoneId: null,
+          startsAt: { lte: now },
+          OR: [{ endsAt: null }, { endsAt: { gt: now } }],
+        },
+        data: { endsAt: now },
+      });
+
+      const publishedVersion = await transaction.portalVersion.update({
+        where: { tenantId_id: { tenantId, id: version.id } },
+        data: { status: "published", publishedAt: now },
+        include: { blocks: { orderBy: { displayOrder: "asc" } } },
+      });
+      const theme = readJsonRecord(publishedVersion.theme);
+      const hero = publishedVersion.blocks.find((block) => block.kind === "hero");
+      const heroProps = readJsonRecord(hero?.props);
+      const snapshot = {
+        portalId: portal.id,
+        portalName: portal.name,
+        portalVersionId: publishedVersion.id,
+        version: publishedVersion.version,
+        siteId: site.id,
+        siteName: site.name,
+        headline: readOptionalString(heroProps["headline"]) ?? "Bienvenido al WiFi",
+        body:
+          readOptionalString(heroProps["body"]) ??
+          "Acepta las condiciones para acceder a Internet.",
+        logoUrl: readOptionalString(theme["logoUrl"]),
+        primaryColor: readOptionalString(theme["primaryColor"]),
+      };
+      const publication = await transaction.portalPublication.create({
+        data: {
+          tenantId,
+          portalVersionId: publishedVersion.id,
+          siteId: site.id,
+          startsAt: now,
+          snapshotHash: snapshotHash(snapshot),
+        },
+      });
+
+      return {
+        id: publication.id,
+        portalId: portal.id,
+        portalVersionId: publishedVersion.id,
+        siteId: site.id,
+        siteName: site.name,
+        startsAt: publication.startsAt.toISOString(),
+        active: true,
       };
     });
   }

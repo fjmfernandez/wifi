@@ -96,6 +96,9 @@ const portalInputSchema = z.object({
     .regex(/^#[0-9a-f]{6}$/i)
     .optional(),
 });
+const portalPublishSchema = z.object({
+  siteId: uuidLikeSchema,
+});
 
 const voucherBatchInputSchema = z.object({
   siteId: uuidLikeSchema,
@@ -310,6 +313,20 @@ export class AdminOperationsController {
       session.tenantId,
       idParamSchema.parse(id),
       portalUpdateSchema.parse(body),
+    );
+  }
+
+  @Post("portals/:id/publish")
+  async publishPortal(
+    @Req() request: FastifyRequest,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ): Promise<unknown> {
+    const session = await this.sessions.requireSession(request, ["portal.publish"]);
+    return this.operations.publishPortal(
+      session.tenantId,
+      idParamSchema.parse(id),
+      portalPublishSchema.parse(body),
     );
   }
 

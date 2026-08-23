@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
+  Building2,
   Check,
   Eye,
   Languages,
@@ -9,8 +10,11 @@ import {
   Pencil,
   Plus,
   RefreshCcw,
+  Rocket,
   Smartphone,
+  Sparkles,
   Trash2,
+  Wifi,
   type LucideIcon,
 } from "lucide-react";
 
@@ -20,6 +24,15 @@ import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { EditDialog } from "@/components/edit-dialog";
 import { PageHeader } from "@/components/page-header";
 import { adminApi, inputClass } from "../admin-api";
+
+interface PortalPublicationView {
+  id: string;
+  siteId: string;
+  siteName: string;
+  startsAt: string;
+  endsAt: string | null;
+  active: boolean;
+}
 
 interface PortalView {
   id: string;
@@ -34,6 +47,19 @@ interface PortalView {
   logoUrl: string | null;
   primaryColor: string | null;
   siteNames: string[];
+  publications: PortalPublicationView[];
+  createdAt: string;
+}
+
+interface SiteView {
+  id: string;
+  code: string;
+  name: string;
+  status: string;
+  timezone: string;
+  countryCode: string;
+  gatewaysTotal: number;
+  gatewaysOnline: number;
   createdAt: string;
 }
 
@@ -58,17 +84,42 @@ async function logoValue(data: FormData): Promise<string | undefined> {
   return String(data.get("logoUrl") || "") || undefined;
 }
 
+function defaultHeadline(portal: PortalView): string {
+  return portal.headline ?? `Bienvenido a ${portal.name}`;
+}
+
+function defaultBody(portal: PortalView): string {
+  return portal.body ?? "Introduce tus datos para acceder a Internet.";
+}
+
+function portalColor(portal: PortalView): string {
+  return portal.primaryColor ?? "#0d9488";
+}
+
 export default function PortalsPage() {
   const [portals, setPortals] = useState<PortalView[]>([]);
+  const [sites, setSites] = useState<SiteView[]>([]);
   const [saving, setSaving] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [publishingId, setPublishingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editingPortal, setEditingPortal] = useState<PortalView | null>(null);
   const [deletingPortal, setDeletingPortal] = useState<PortalView | null>(null);
 
+  const activePublications = useMemo(
+    () =>
+      portals.flatMap((portal) => portal.publications.filter((publication) => publication.active)),
+    [portals],
+  );
+
   async function refresh(): Promise<void> {
     setError(null);
-    setPortals(await adminApi<PortalView[]>("/api/v1/admin/portals"));
+    const [nextPortals, nextSites] = await Promise.all([
+      adminApi<PortalView[]>("/api/v1/admin/portals"),
+      adminApi<SiteView[]>("/api/v1/admin/sites"),
+    ]);
+    setPortals(nextPortals);
+    setSites(nextSites);
   }
 
   useEffect(() => {
@@ -128,6 +179,26 @@ export default function PortalsPage() {
     }
   }
 
+  async function publishPortal(portal: PortalView, siteId: string): Promise<void> {
+    if (!siteId) {
+      setError("Selecciona una sede para publicar el portal");
+      return;
+    }
+    setPublishingId(portal.id);
+    setError(null);
+    try {
+      await adminApi(`/api/v1/admin/portals/${portal.id}/publish`, {
+        method: "POST",
+        body: JSON.stringify({ siteId }),
+      });
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudo publicar el portal");
+    } finally {
+      setPublishingId(null);
+    }
+  }
+
   async function archivePortal(portal: PortalView): Promise<void> {
     try {
       await adminApi<{ archived: boolean }>(`/api/v1/admin/portals/${portal.id}`, {
@@ -144,7 +215,7 @@ export default function PortalsPage() {
     <>
       <PageHeader
         title="Portales cautivos"
-        description="Crea portales WiFi versionados con textos iniciales listos para publicar."
+        description="Diseña la experiencia WiFi de cada cliente y publícala en su sede en un clic."
         actions={
           <Button variant="secondary" onClick={() => void refresh()}>
             <RefreshCcw className="size-4" /> Actualizar
@@ -152,10 +223,33 @@ export default function PortalsPage() {
         }
       />
 
+      <section className="mb-6 overflow-hidden rounded-[2rem] border border-slate-200 bg-slate-950 text-white shadow-2xl shadow-slate-950/10">
+        <div className="relative grid gap-6 p-6 lg:grid-cols-[1.2fr_.8fr] lg:p-8">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(45,212,191,.28),transparent_32%),radial-gradient(circle_at_80%_10%,rgba(59,130,246,.24),transparent_30%)]" />
+          <div className="relative">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-bold text-teal-100 backdrop-blur">
+              <Sparkles className="size-3.5" /> Multi-cliente desde captive.wpass.es
+            </span>
+            <h2 className="mt-5 max-w-2xl text-3xl font-black tracking-tight sm:text-4xl">
+              Un dominio común, una marca distinta para cada sede.
+            </h2>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
+              WPass detecta el gateway que abre la sesión y sirve el portal publicado para esa sede:
+              logo, color, textos y experiencia de acceso.
+            </p>
+          </div>
+          <div className="relative grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+            <Metric label="Portales" value={String(portals.length)} />
+            <Metric label="Sedes disponibles" value={String(sites.length)} />
+            <Metric label="Publicaciones activas" value={String(activePublications.length)} />
+          </div>
+        </div>
+      </section>
+
       <div className="mb-5 grid gap-3 sm:grid-cols-3">
-        <Info icon={Smartphone} title="Mobile-first" text="Preparado para portal cautivo móvil" />
-        <Info icon={Languages} title="Idioma base" text="Fallback inicial en español" />
-        <Info icon={Check} title="Versionado" text="Cada portal nace con versión editable" />
+        <Info icon={Smartphone} title="Mobile-first" text="Preview pensado para móvil" />
+        <Info icon={Building2} title="Por sede" text="Cada cliente puede tener su marca" />
+        <Info icon={Rocket} title="Publicación 1 clic" text="Activa el portal en producción" />
       </div>
 
       {error ? (
@@ -166,11 +260,21 @@ export default function PortalsPage() {
 
       <form
         onSubmit={(event) => void createPortal(event)}
-        className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+        className="mb-6 overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-sm"
       >
-        <h2 className="text-sm font-extrabold text-slate-900">Crear portal</h2>
-        <div className="mt-4 grid gap-3 lg:grid-cols-3">
-          <input name="name" required placeholder="Nombre del portal" className={inputClass} />
+        <div className="border-b border-slate-100 bg-gradient-to-r from-white to-slate-50 px-5 py-4">
+          <h2 className="text-sm font-black text-slate-950">Nuevo portal de cliente</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Empieza por los datos básicos. Después publícalo en la sede que corresponda.
+          </p>
+        </div>
+        <div className="grid gap-3 p-5 lg:grid-cols-3">
+          <input
+            name="name"
+            required
+            placeholder="Nombre interno, ej. Hotel Costa"
+            className={inputClass}
+          />
           <input
             name="headline"
             placeholder="Título, ej. Bienvenido al WiFi"
@@ -196,90 +300,40 @@ export default function PortalsPage() {
             className={inputClass}
           />
         </div>
-        <Button type="submit" className="mt-4" disabled={saving}>
-          <Plus className="size-4" /> {saving ? "Creando…" : "Nuevo portal"}
-        </Button>
+        <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-5 py-4">
+          <p className="text-xs text-slate-500">
+            El logo se guarda en el portal y se muestra al usuario final.
+          </p>
+          <Button type="submit" disabled={saving}>
+            <Plus className="size-4" /> {saving ? "Creando…" : "Crear portal"}
+          </Button>
+        </div>
       </form>
 
-      <div className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-3">
+      <div className="grid gap-6 xl:grid-cols-2">
         {portals.map((portal) => (
-          <Card key={portal.id} className="overflow-hidden">
-            <div className="relative h-52 overflow-hidden bg-gradient-to-br from-[#0d385f] via-[#196f91] to-[#23a9ad]">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_65%_20%,rgba(255,255,255,.25),transparent_30%)]" />
-              <div className="absolute left-1/2 top-1/2 w-44 -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white/95 p-4 text-center shadow-2xl">
-                {portal.logoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={portal.logoUrl}
-                    alt={portal.name}
-                    className="mx-auto size-9 rounded-xl object-contain"
-                  />
-                ) : (
-                  <span className="mx-auto grid size-9 place-items-center rounded-xl bg-slate-900 text-[10px] font-black text-white">
-                    WiFi
-                  </span>
-                )}
-                <p className="mt-2 text-[10px] font-extrabold text-slate-900">
-                  {portal.headline ?? portal.name}
-                </p>
-                <p className="mt-1 text-[7px] leading-3 text-slate-400">
-                  {portal.body ?? "Conéctate al servicio WiFi de la sede"}
-                </p>
-                <span
-                  className="mt-3 block rounded-md bg-brand-600 py-1.5 text-[7px] font-bold text-white"
-                  style={portal.primaryColor ? { backgroundColor: portal.primaryColor } : undefined}
-                >
-                  Acceder a Internet
-                </span>
-              </div>
-              <Badge
-                variant={portal.status === "published" ? "success" : "warning"}
-                className="absolute left-4 top-4"
-                dot
-              >
-                {portal.status}
-              </Badge>
-              <span className="absolute right-4 top-4 grid size-8 place-items-center rounded-xl bg-white/15 text-white backdrop-blur">
-                <Eye className="size-4" />
-              </span>
-            </div>
-            <div className="p-5">
-              <h2 className="text-sm font-extrabold text-slate-900">{portal.name}</h2>
-              <p className="mt-1 text-xs text-slate-500">
-                {portal.siteNames.length > 0
-                  ? portal.siteNames.join(", ")
-                  : "Pendiente de publicar en una sede"}
-              </p>
-              <div className="mt-4 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
-                <span className="rounded-lg bg-slate-100 px-2 py-1">v{portal.version ?? 1}</span>
-                <span className="rounded-lg bg-slate-100 px-2 py-1">
-                  {portal.fallbackLocale.toUpperCase()}
-                </span>
-                <span className="rounded-lg bg-slate-100 px-2 py-1">{portal.kind}</span>
-              </div>
-              <div className="mt-5 flex gap-2 border-t border-slate-100 pt-4">
-                <Button variant="secondary" size="sm" onClick={() => setEditingPortal(portal)}>
-                  <Pencil className="size-3.5" /> Editar
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => setDeletingPortal(portal)}>
-                  <Trash2 className="size-3.5" /> Borrar
-                </Button>
-              </div>
-            </div>
-          </Card>
+          <PortalCard
+            key={portal.id}
+            portal={portal}
+            sites={sites}
+            publishing={publishingId === portal.id}
+            onEdit={() => setEditingPortal(portal)}
+            onDelete={() => setDeletingPortal(portal)}
+            onPublish={(siteId) => void publishPortal(portal, siteId)}
+          />
         ))}
 
         {portals.length === 0 ? (
-          <div className="grid min-h-[260px] place-items-center rounded-2xl border-2 border-dashed border-slate-200 bg-white/50 p-8 text-center">
+          <div className="grid min-h-[320px] place-items-center rounded-[2rem] border-2 border-dashed border-slate-200 bg-white/50 p-8 text-center xl:col-span-2">
             <span>
-              <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-slate-100 text-slate-500">
-                <Palette className="size-5" />
+              <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-slate-100 text-slate-500">
+                <Palette className="size-6" />
               </span>
               <span className="mt-4 block text-sm font-extrabold text-slate-900">
                 Todavía no hay portales
               </span>
               <span className="mt-1 block max-w-xs text-xs leading-5 text-slate-500">
-                Crea el primero con el formulario superior.
+                Crea el primero con el formulario superior y publícalo en gatewaycasa.
               </span>
             </span>
           </div>
@@ -289,7 +343,7 @@ export default function PortalsPage() {
       <EditDialog
         open={editingPortal !== null}
         title="Editar portal cautivo"
-        description="Personaliza textos, logo y color del portal en una sola ventana."
+        description="Cambia textos, logo y color en una sola ventana. Después publícalo en la sede."
         saving={savingEdit}
         onClose={() => setEditingPortal(null)}
         onSubmit={() =>
@@ -312,7 +366,7 @@ export default function PortalsPage() {
               />
             </label>
             <label className="grid gap-1.5 text-xs font-bold text-slate-700">
-              Título
+              Título visible
               <input
                 name="headline"
                 defaultValue={editingPortal.headline ?? "Bienvenido al WiFi"}
@@ -320,7 +374,7 @@ export default function PortalsPage() {
               />
             </label>
             <label className="grid gap-1.5 text-xs font-bold text-slate-700">
-              Texto
+              Texto visible
               <textarea
                 name="body"
                 defaultValue={
@@ -374,6 +428,159 @@ export default function PortalsPage() {
         onConfirm={() => (deletingPortal ? void archivePortal(deletingPortal) : undefined)}
       />
     </>
+  );
+}
+
+function PortalCard({
+  portal,
+  sites,
+  publishing,
+  onEdit,
+  onDelete,
+  onPublish,
+}: {
+  portal: PortalView;
+  sites: SiteView[];
+  publishing: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+  onPublish: (siteId: string) => void;
+}) {
+  const [selectedSiteId, setSelectedSiteId] = useState("");
+  const activeSites = portal.publications.filter((publication) => publication.active);
+  const selectedSite = selectedSiteId || sites[0]?.id || "";
+
+  return (
+    <Card className="overflow-hidden rounded-[2rem] border-slate-200 bg-white shadow-sm">
+      <div className="grid lg:grid-cols-[.9fr_1.1fr]">
+        <div
+          className="relative min-h-[360px] overflow-hidden p-6 text-white"
+          style={{
+            background: `radial-gradient(circle at 20% 20%, ${portalColor(
+              portal,
+            )}55, transparent 34%), linear-gradient(145deg, #020617 0%, #0f172a 52%, ${portalColor(
+              portal,
+            )} 130%)`,
+          }}
+        >
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_10%,rgba(255,255,255,.22),transparent_28%)]" />
+          <Badge
+            variant={portal.status === "published" ? "success" : "warning"}
+            className="relative"
+            dot
+          >
+            {portal.status === "published" ? "Publicado" : "Borrador"}
+          </Badge>
+          <div className="relative mx-auto mt-8 w-[230px] rounded-[2.3rem] border border-white/15 bg-white/10 p-2 shadow-2xl shadow-black/30 backdrop-blur">
+            <div className="overflow-hidden rounded-[1.85rem] bg-white text-slate-950">
+              <div className="h-20" style={{ backgroundColor: portalColor(portal) }} />
+              <div className="-mt-8 px-5 pb-6 text-center">
+                <span className="mx-auto grid size-16 place-items-center rounded-2xl border border-slate-100 bg-white shadow-xl">
+                  {portal.logoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={portal.logoUrl}
+                      alt={portal.name}
+                      className="size-11 object-contain"
+                    />
+                  ) : (
+                    <Wifi className="size-7" style={{ color: portalColor(portal) }} />
+                  )}
+                </span>
+                <h3 className="mt-5 text-base font-black tracking-tight">
+                  {defaultHeadline(portal)}
+                </h3>
+                <p className="mt-2 text-xs leading-5 text-slate-500">{defaultBody(portal)}</p>
+                <span
+                  className="mt-5 block rounded-2xl px-4 py-3 text-xs font-black text-white shadow-lg"
+                  style={{ backgroundColor: portalColor(portal) }}
+                >
+                  Acceder a Internet
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-black tracking-tight text-slate-950">{portal.name}</h2>
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                v{portal.version ?? 1} · {portal.fallbackLocale.toUpperCase()} · {portal.kind}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="secondary" size="sm" onClick={onEdit}>
+                <Pencil className="size-3.5" /> Editar
+              </Button>
+              <Button variant="ghost" size="sm" onClick={onDelete}>
+                <Trash2 className="size-3.5" />
+              </Button>
+            </div>
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+              <Eye className="size-4" /> Publicación
+            </div>
+            {activeSites.length > 0 ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {activeSites.map((publication) => (
+                  <span
+                    key={publication.id}
+                    className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200"
+                  >
+                    <span className="size-2 rounded-full bg-emerald-500" />
+                    {publication.siteName}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-3 text-sm font-semibold text-slate-600">
+                Todavía no está activo en ninguna sede.
+              </p>
+            )}
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
+              <select
+                value={selectedSite}
+                onChange={(event) => setSelectedSiteId(event.target.value)}
+                className={inputClass}
+                disabled={sites.length === 0}
+              >
+                {sites.length === 0 ? <option value="">Crea una sede primero</option> : null}
+                {sites.map((site) => (
+                  <option key={site.id} value={site.id}>
+                    {site.name} · {site.gatewaysOnline}/{site.gatewaysTotal} gateways online
+                  </option>
+                ))}
+              </select>
+              <Button
+                onClick={() => onPublish(selectedSite)}
+                disabled={publishing || sites.length === 0}
+                className="bg-slate-950 hover:bg-slate-800"
+              >
+                <Rocket className="size-4" /> {publishing ? "Publicando…" : "Publicar"}
+              </Button>
+            </div>
+            <p className="mt-3 text-xs leading-5 text-slate-500">
+              Al publicar, este portal sustituye al portal activo de esa sede. Los usuarios nuevos
+              que entren por sus gateways verán esta marca automáticamente.
+            </p>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
+      <span className="block text-2xl font-black">{value}</span>
+      <span className="mt-1 block text-xs font-semibold text-slate-300">{label}</span>
+    </div>
   );
 }
 
