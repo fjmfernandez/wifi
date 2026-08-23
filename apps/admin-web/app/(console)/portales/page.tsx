@@ -2,7 +2,6 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import {
-  Archive,
   Check,
   Eye,
   Languages,
@@ -11,11 +10,13 @@ import {
   Plus,
   RefreshCcw,
   Smartphone,
+  Trash2,
   type LucideIcon,
 } from "lucide-react";
 
 import { Badge, Button, Card } from "@wifi/ui";
 
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { EditDialog } from "@/components/edit-dialog";
 import { PageHeader } from "@/components/page-header";
 import { adminApi, inputClass } from "../admin-api";
@@ -42,6 +43,7 @@ export default function PortalsPage() {
   const [savingEdit, setSavingEdit] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editingPortal, setEditingPortal] = useState<PortalView | null>(null);
+  const [deletingPortal, setDeletingPortal] = useState<PortalView | null>(null);
 
   async function refresh(): Promise<void> {
     setError(null);
@@ -106,14 +108,14 @@ export default function PortalsPage() {
   }
 
   async function archivePortal(portal: PortalView): Promise<void> {
-    if (!window.confirm(`¿Archivar ${portal.name}?`)) return;
     try {
       await adminApi<{ archived: boolean }>(`/api/v1/admin/portals/${portal.id}`, {
         method: "DELETE",
       });
+      setDeletingPortal(null);
       await refresh();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "No se pudo archivar el portal");
+      setError(cause instanceof Error ? cause.message : "No se pudo borrar el portal");
     }
   }
 
@@ -232,8 +234,8 @@ export default function PortalsPage() {
                 <Button variant="secondary" size="sm" onClick={() => setEditingPortal(portal)}>
                   <Pencil className="size-3.5" /> Editar
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => void archivePortal(portal)}>
-                  <Archive className="size-3.5" /> Archivar
+                <Button variant="ghost" size="sm" onClick={() => setDeletingPortal(portal)}>
+                  <Trash2 className="size-3.5" /> Borrar
                 </Button>
               </div>
             </div>
@@ -323,6 +325,15 @@ export default function PortalsPage() {
           </form>
         ) : null}
       </EditDialog>
+
+      <DeleteConfirmDialog
+        open={deletingPortal !== null}
+        title="Borrar portal cautivo"
+        itemName={deletingPortal?.name ?? ""}
+        description="Se retirará el portal de las listas activas. Escribe eliminar para confirmar."
+        onCancel={() => setDeletingPortal(null)}
+        onConfirm={() => (deletingPortal ? void archivePortal(deletingPortal) : undefined)}
+      />
     </>
   );
 }

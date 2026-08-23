@@ -9,12 +9,14 @@ import {
   Plus,
   Radio,
   Smartphone,
+  Trash2,
   Zap,
   type LucideIcon,
 } from "lucide-react";
 
 import { Badge, Button, Card } from "@wifi/ui";
 
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { EditDialog } from "@/components/edit-dialog";
 import { PageHeader } from "@/components/page-header";
 import { adminApi, inputClass } from "../admin-api";
@@ -50,6 +52,7 @@ export default function ServicesPage() {
   const [savingEdit, setSavingEdit] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editingPolicy, setEditingPolicy] = useState<PolicyView | null>(null);
+  const [deletingPolicy, setDeletingPolicy] = useState<PolicyView | null>(null);
 
   async function refresh(): Promise<void> {
     setError(null);
@@ -114,6 +117,18 @@ export default function ServicesPage() {
       setError(cause instanceof Error ? cause.message : "No se pudo editar la política");
     } finally {
       setSavingEdit(false);
+    }
+  }
+
+  async function archivePolicy(policy: PolicyView): Promise<void> {
+    try {
+      await adminApi<{ archived: boolean }>(`/api/v1/admin/policies/${policy.id}`, {
+        method: "DELETE",
+      });
+      setDeletingPolicy(null);
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudo borrar la política");
     }
   }
 
@@ -212,14 +227,14 @@ export default function ServicesPage() {
                   value={`${policy.maxConcurrentDevices ?? 1}`}
                 />
               </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                className="mt-4"
-                onClick={() => setEditingPolicy(policy)}
-              >
-                <Pencil className="size-3.5" /> Editar y publicar v{(policy.version ?? 1) + 1}
-              </Button>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button variant="secondary" size="sm" onClick={() => setEditingPolicy(policy)}>
+                  <Pencil className="size-3.5" /> Editar y publicar v{(policy.version ?? 1) + 1}
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setDeletingPolicy(policy)}>
+                  <Trash2 className="size-3.5" /> Borrar
+                </Button>
+              </div>
             </div>
           </Card>
         ))}
@@ -313,6 +328,15 @@ export default function ServicesPage() {
           </form>
         ) : null}
       </EditDialog>
+
+      <DeleteConfirmDialog
+        open={deletingPolicy !== null}
+        title="Borrar servicio / política"
+        itemName={deletingPolicy?.name ?? ""}
+        description="Se retirará la política de las listas activas. Escribe eliminar para confirmar."
+        onCancel={() => setDeletingPolicy(null)}
+        onConfirm={() => (deletingPolicy ? void archivePolicy(deletingPolicy) : undefined)}
+      />
     </>
   );
 }

@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { Archive, Building2, Pencil, Plus, RefreshCcw } from "lucide-react";
+import { Building2, Pencil, Plus, RefreshCcw, Trash2 } from "lucide-react";
 
 import { Badge, Button } from "@wifi/ui";
 
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { EditDialog } from "@/components/edit-dialog";
 import { PageHeader } from "@/components/page-header";
 import { TableFrame } from "@/components/table-frame";
@@ -27,6 +28,7 @@ export default function OrganizationsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingOrganization, setEditingOrganization] = useState<OrganizationView | null>(null);
+  const [deletingOrganization, setDeletingOrganization] = useState<OrganizationView | null>(null);
 
   async function refresh(): Promise<void> {
     setError(null);
@@ -89,14 +91,14 @@ export default function OrganizationsPage() {
   }
 
   async function archiveOrganization(organization: OrganizationView): Promise<void> {
-    if (!window.confirm(`¿Archivar ${organization.name}?`)) return;
     try {
       await adminApi<{ archived: boolean }>(`/api/v1/admin/organizations/${organization.id}`, {
         method: "DELETE",
       });
+      setDeletingOrganization(null);
       await refresh();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "No se pudo archivar la organización");
+      setError(cause instanceof Error ? cause.message : "No se pudo borrar la organización");
     }
   }
 
@@ -189,9 +191,9 @@ export default function OrganizationsPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => void archiveOrganization(organization)}
+                      onClick={() => setDeletingOrganization(organization)}
                     >
-                      <Archive className="size-3.5" /> Archivar
+                      <Trash2 className="size-3.5" /> Borrar
                     </Button>
                   </div>
                 </td>
@@ -248,6 +250,17 @@ export default function OrganizationsPage() {
           </form>
         ) : null}
       </EditDialog>
+
+      <DeleteConfirmDialog
+        open={deletingOrganization !== null}
+        title="Borrar organización"
+        itemName={deletingOrganization?.name ?? ""}
+        description="Se retirará la organización de las listas activas. Escribe eliminar para confirmar."
+        onCancel={() => setDeletingOrganization(null)}
+        onConfirm={() =>
+          deletingOrganization ? void archiveOrganization(deletingOrganization) : undefined
+        }
+      />
     </>
   );
 }

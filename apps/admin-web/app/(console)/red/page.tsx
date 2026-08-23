@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { Archive, Pencil, Plus, RefreshCcw, Router, Wifi } from "lucide-react";
+import { Pencil, Plus, RefreshCcw, Router, Trash2, Wifi } from "lucide-react";
 
 import { Badge, Button } from "@wifi/ui";
 
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { EditDialog } from "@/components/edit-dialog";
 import { PageHeader } from "@/components/page-header";
 import { TableFrame } from "@/components/table-frame";
@@ -38,6 +39,7 @@ export default function NetworkPage() {
   const [savingEdit, setSavingEdit] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editingGateway, setEditingGateway] = useState<GatewayView | null>(null);
+  const [deletingGateway, setDeletingGateway] = useState<GatewayView | null>(null);
 
   async function refresh(): Promise<void> {
     setError(null);
@@ -108,14 +110,14 @@ export default function NetworkPage() {
   }
 
   async function archiveGateway(gateway: GatewayView): Promise<void> {
-    if (!window.confirm(`¿Archivar ${gateway.name}?`)) return;
     try {
       await adminApi<{ archived: boolean }>(`/api/v1/admin/gateways/${gateway.id}`, {
         method: "DELETE",
       });
+      setDeletingGateway(null);
       await refresh();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "No se pudo archivar el gateway");
+      setError(cause instanceof Error ? cause.message : "No se pudo borrar el gateway");
     }
   }
 
@@ -222,8 +224,8 @@ export default function NetworkPage() {
                     <Button variant="ghost" size="sm" onClick={() => setEditingGateway(gateway)}>
                       <Pencil className="size-3.5" /> Editar
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => void archiveGateway(gateway)}>
-                      <Archive className="size-3.5" /> Archivar
+                    <Button variant="ghost" size="sm" onClick={() => setDeletingGateway(gateway)}>
+                      <Trash2 className="size-3.5" /> Borrar
                     </Button>
                   </div>
                 </td>
@@ -320,6 +322,15 @@ export default function NetworkPage() {
           </form>
         ) : null}
       </EditDialog>
+
+      <DeleteConfirmDialog
+        open={deletingGateway !== null}
+        title="Borrar gateway"
+        itemName={deletingGateway?.name ?? ""}
+        description="Se retirará el gateway de las listas activas. Escribe eliminar para confirmar."
+        onCancel={() => setDeletingGateway(null)}
+        onConfirm={() => (deletingGateway ? void archiveGateway(deletingGateway) : undefined)}
+      />
     </>
   );
 }
