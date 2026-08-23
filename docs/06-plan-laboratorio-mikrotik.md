@@ -1,4 +1,4 @@
-# WiFi ENTELSAT — plan de laboratorio MikroTik
+# WPass — plan de laboratorio MikroTik
 
 **Estado:** propuesto  
 **Objetivo:** convertir supuestos RouterOS/RADIUS/CNA en una matriz de soporte reproducible  

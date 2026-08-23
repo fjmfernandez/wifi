@@ -66,7 +66,7 @@ describe("initial admin bootstrap material", () => {
 
     const code = totpCode(material.oneTimeOutput.totpSecret, 1_800_000_000_000);
     expect(verifyTotp(code, material.oneTimeOutput.totpSecret, 1_800_000_000_000, 0)).toBe(true);
-    expect(material.oneTimeOutput.totpUri).toContain("otpauth://totp/Entelsat%20WiFi:");
+    expect(material.oneTimeOutput.totpUri).toContain("otpauth://totp/WPass:");
     expect(material.oneTimeOutput.totpUri).toContain(`secret=${material.oneTimeOutput.totpSecret}`);
 
     expect(material.oneTimeOutput.recoveryCodes).toHaveLength(10);

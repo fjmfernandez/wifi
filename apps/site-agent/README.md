@@ -1,4 +1,4 @@
-# WiFi ENTELSAT site-agent
+# WPass site-agent
 
 Agente on-premise de salida única para inventario y cambios declarativos de gateways. Esta base implementa enrolamiento, identidad mTLS, comandos firmados, anti-replay, cola SQLite cifrada, health/readiness, backoff y apagado ordenado.
 
@@ -43,7 +43,7 @@ pnpm --filter @wifi/site-agent test
 pnpm --filter @wifi/site-agent build
 ```
 
-En producción montar `/var/lib/wifi-site-agent` como volumen persistente con permisos del usuario no-root y usar `SITE_AGENT_DB_PATH=/var/lib/wifi-site-agent/site-agent.sqlite`. El contenedor debe tener filesystem raíz read-only, `no-new-privileges`, capacidades Linux eliminadas y egress limitado a `wifi.entelsat.com:443`, DNS/NTP aprobados y la red privada de gestión cuando exista un adaptador físico validado.
+En producción montar `/var/lib/wifi-site-agent` como volumen persistente con permisos del usuario no-root y usar `SITE_AGENT_DB_PATH=/var/lib/wifi-site-agent/site-agent.sqlite`. El contenedor debe tener filesystem raíz read-only, `no-new-privileges`, capacidades Linux eliminadas y egress limitado a `wpass.es:443`, DNS/NTP aprobados y la red privada de gestión cuando exista un adaptador físico validado.
 
 ## Readiness
 

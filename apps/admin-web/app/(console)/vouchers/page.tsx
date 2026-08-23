@@ -176,7 +176,7 @@ export default function VouchersPage() {
     const href = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = href;
-    link.download = "vouchers-entelsat.txt";
+    link.download = "vouchers-wpass.txt";
     link.click();
     URL.revokeObjectURL(href);
   }
@@ -360,7 +360,7 @@ export default function VouchersPage() {
           </div>
           <div className="mx-auto max-w-md border-t border-slate-100 p-6 text-center print:border-0 print:p-10">
             <p className="text-[11px] font-black uppercase tracking-[0.22em] text-brand-700">
-              ENTELSAT WiFi
+              WPass WiFi
             </p>
             <h2 className="mt-2 text-2xl font-black text-slate-950">{ticket.siteName}</h2>
             <p className="mt-1 text-xs text-slate-500">{ticket.batchName}</p>

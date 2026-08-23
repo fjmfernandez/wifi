@@ -4,8 +4,8 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "WiFi huéspedes · Hotel Miramar",
-  description: "Acceso seguro a la red WiFi de invitados.",
+  title: "WPass · WiFi invitados",
+  description: "Acceso seguro a WiFi para invitados con portal cautivo WPass.",
   robots: { index: false, follow: false },
 };
 
@@ -14,7 +14,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: "cover",
-  themeColor: "#0d385f",
+  themeColor: "#f1ba1b",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

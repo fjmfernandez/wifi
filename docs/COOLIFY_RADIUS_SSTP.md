@@ -1,4 +1,4 @@
-# ENTELSAT WiFi · FreeRADIUS + RouterBOARD por SSTP
+# WPass WiFi · FreeRADIUS + RouterBOARD por SSTP
 
 ## 1. Variables en Coolify
 
@@ -7,7 +7,7 @@ El servidor SSTP queda añadido como servicio `sstp-vpn`.
 
 La app puede arrancar sin RouterBOARD real usando el cliente local por defecto. Para una prueba real, genera la línea desde el panel:
 
-`wifi.entelsat.com/routerboard`
+`wpass.es/routerboard`
 
 y pega el resultado en la variable de Coolify:
 
@@ -43,7 +43,7 @@ El servicio `sstp-vpn` publica TCP `4443` por defecto para no ocupar el `443` qu
 Variables principales:
 
 ```env
-SSTP_PUBLIC_HOST=62.84.190.174
+SSTP_PUBLIC_HOST=wpass.es
 SSTP_PORT=4443
 SSTP_LOCAL_IP=10.255.0.1
 SSTP_POOL=10.255.0.2-254
@@ -81,7 +81,7 @@ El RouterBOARD se conecta como `SSTP Client` hacia tu servidor VPN. El panel gen
 - secreto RADIUS;
 - `system identity` igual al `NAS Identifier`;
 - perfil HotSpot con `use-radius=yes`;
-- walled garden hacia `captive.wifi.entelsat.com`.
+- walled garden hacia `captive.wpass.es`.
 
 El script usa:
 
@@ -104,7 +104,7 @@ Files / hotspot / login.html
 Ese HTML envía al portal:
 
 ```text
-https://captive.wifi.entelsat.com/api/v1/captive/session/start
+https://captive.wpass.es/api/v1/captive/session/start
 ```
 
 y usa un `gatewayLocator` seguro generado por la API.

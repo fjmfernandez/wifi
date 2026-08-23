@@ -33,7 +33,10 @@ export const provisioningInputSchema = z.object({
     .refine((value) => value.startsWith("https://"), "Captive origin must use HTTPS"),
   radiusPrimary: z.union([z.ipv4(), z.ipv6()]),
   radiusSecondary: z.union([z.ipv4(), z.ipv6()]),
-  radiusSecretVariable: z.literal("$ENTELSAT_RADIUS_SECRET"),
+  radiusSecretVariable: z.union([
+    z.literal("$WPASS_RADIUS_SECRET"),
+    z.literal("$ENTELSAT_RADIUS_SECRET"),
+  ]),
   interimIntervalSeconds: z.number().int().min(60).max(3600).default(300),
 });
 
@@ -56,7 +59,7 @@ function quote(value: string): string {
 }
 
 function tagged(revision: number): string {
-  return quote(`ENTELSAT managed revision=${revision}`);
+  return quote(`WPass managed revision=${revision}`);
 }
 
 export function buildProvisioningPlan(rawInput: unknown): ProvisioningPlan {
@@ -69,7 +72,7 @@ export function buildProvisioningPlan(rawInput: unknown): ProvisioningPlan {
   }
 
   const tag = tagged(input.revision);
-  const backupBase = `entelsat-before-r${input.revision}`;
+  const backupBase = `wpass-before-r${input.revision}`;
   const preflight = [
     "/system resource print without-paging",
     "/system package print without-paging",
@@ -83,7 +86,7 @@ export function buildProvisioningPlan(rawInput: unknown): ProvisioningPlan {
     `/export terse file=${quote(`${backupBase}.rsc`)}`,
   ];
   const apply: string[] = [
-    `:if ([:len ${input.radiusSecretVariable}] = 0) do={ :error "ENTELSAT RADIUS secret is missing" }`,
+    `:if ([:len ${input.radiusSecretVariable}] = 0) do={ :error "WPass RADIUS secret is missing" }`,
     `/radius add address=${input.radiusPrimary} service=hotspot secret=${input.radiusSecretVariable} timeout=1s comment=${tag}`,
     `/radius add address=${input.radiusSecondary} service=hotspot secret=${input.radiusSecretVariable} timeout=1s comment=${tag}`,
     `/ip hotspot profile set [find name=${quote(input.hotspotName)}] use-radius=yes radius-accounting=yes radius-interim-update=${input.interimIntervalSeconds}s dns-name=${quote(input.dnsName)} login-by=https,http-pap`,
@@ -130,7 +133,7 @@ export function renderReviewableScript(plan: ProvisioningPlan): string {
   const section = (title: string, commands: readonly string[]) =>
     [`# --- ${title} ---`, ...commands].join("\n");
   return [
-    `# WiFi ENTELSAT provisioning revision ${plan.revision}`,
+    `# WPass WiFi provisioning revision ${plan.revision}`,
     `# SHA-256 ${plan.fingerprint}`,
     "# PREVIEW ONLY — requires approved diff and physical-lab validation",
     section("PREFLIGHT (read-only)", plan.preflight),
@@ -149,7 +152,7 @@ export function renderExternalLoginHtml(captiveOrigin: string, gatewayLocator: s
   const action = `${origin.origin}/api/v1/captive/session/start`;
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>WiFi</title></head>
-<body><form id="entelsat-captive" action="${action}" method="post">
+<body><form id="wpass-captive" action="${action}" method="post">
 <input type="hidden" name="gatewayLocator" value="${gatewayLocator}"><input type="hidden" name="mac" value="$(mac)"><input type="hidden" name="ip" value="$(ip)"><input type="hidden" name="linkLogin" value="$(link-login)"><input type="hidden" name="linkOrig" value="$(link-orig)"><input type="hidden" name="error" value="$(error)">
-<noscript><button type="submit">Continue to WiFi</button></noscript></form><script>document.getElementById('entelsat-captive').submit()</script></body></html>`;
+<noscript><button type="submit">Continue to WiFi</button></noscript></form><script>document.getElementById('wpass-captive').submit()</script></body></html>`;
 }

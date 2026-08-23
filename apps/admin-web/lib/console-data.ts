@@ -21,7 +21,7 @@ export const consoleSections = {
       ["miramar-core-01", "Hotel Miramar Málaga", "RB5009UG+S+", "7.21.5", "Hace 18 s", "Online"],
       ["miramar-pool-01", "Hotel Miramar Málaga", "hAP ax³", "7.21.5", "Hace 22 s", "Online"],
       ["costasur-core-01", "Hotel Costa Sur", "CCR2004", "7.20.6", "Hace 1 min", "Atención"],
-      ["eventos-lab-01", "Laboratorio ENTELSAT", "CHR", "7.21.5", "Hace 34 s", "Online"],
+      ["eventos-lab-01", "Laboratorio WPass", "CHR", "7.21.5", "Hace 34 s", "Online"],
     ],
   },
   usuarios: {
@@ -143,7 +143,7 @@ export const consoleSections = {
         "15 jul 2026",
         "Vigente",
       ],
-      ["Retención de datos", "ENTELSAT", "Borrador", "ES", "—", "Revisión DPO"],
+      ["Retención de datos", "WPass", "Borrador", "ES", "—", "Revisión DPO"],
     ],
   },
   auditoria: {
@@ -171,7 +171,7 @@ export const consoleSections = {
       ],
       [
         "16 ago · 08:01",
-        "Técnico ENTELSAT",
+        "Técnico WPass",
         "gateway.config.preview",
         "miramar-core-01",
         "JIT #1842",

@@ -1,4 +1,4 @@
-# WiFi ENTELSAT — arquitectura C4 inicial
+# WPass — arquitectura C4 inicial
 
 **Estado:** propuesto  
 **Fecha:** 2026-08-15  
@@ -19,7 +19,7 @@ flowchart LR
     Customer["Personal del cliente: cadena, sede, recepción y marketing"]
     Entelsat["Personal ENTELSAT: operaciones, soporte y técnica"]
     DPO["DPO / auditor"]
-    System["WiFi ENTELSAT SaaS"]
+    System["WPass SaaS"]
     Router["Gateway MikroTik RouterOS 7"]
     AP["AP y red de acceso de terceros"]
     Mail["Proveedor de email transaccional"]

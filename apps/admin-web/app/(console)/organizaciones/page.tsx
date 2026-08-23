@@ -130,7 +130,7 @@ export default function OrganizationsPage() {
         <h2 className="text-sm font-extrabold text-slate-900">Crear organización</h2>
         <div className="mt-4 grid gap-3 md:grid-cols-3">
           <input name="name" required placeholder="Nombre comercial" className={inputClass} />
-          <input name="code" required placeholder="Código, ej. ENTELSAT" className={inputClass} />
+          <input name="code" required placeholder="Código, ej. HOTEL01" className={inputClass} />
           <input name="legalName" placeholder="Razón social opcional" className={inputClass} />
         </div>
         <label className="mt-4 flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs font-bold text-slate-700">

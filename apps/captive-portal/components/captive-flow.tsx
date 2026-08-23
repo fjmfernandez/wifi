@@ -47,7 +47,7 @@ const demoContext: CaptiveContext = {
     name: "Hotel Miramar",
     headline: "Bienvenido al WiFi",
     body: "Introduce tus datos para acceder a Internet.",
-    primaryColor: "#0d9488",
+    primaryColor: "#f1ba1b",
   },
 };
 
@@ -85,7 +85,7 @@ const copy: Record<"es" | "en", PortalCopy> = {
     privacy: "y he leído la política de privacidad.",
     marketing: "Quiero recibir ofertas del hotel. Opcional.",
     connect: "Conectarme a Internet",
-    secure: "Conexión protegida · Servicio gestionado por ENTELSAT",
+    secure: "Conexión protegida · Servicio gestionado por WPass",
   },
   en: {
     description: "Connect securely to our guest WiFi.",
@@ -102,7 +102,7 @@ const copy: Record<"es" | "en", PortalCopy> = {
     privacy: "and I have read the privacy policy.",
     marketing: "I would like to receive hotel offers. Optional.",
     connect: "Connect to the Internet",
-    secure: "Protected connection · Service managed by ENTELSAT",
+    secure: "Protected connection · Service managed by WPass",
   },
 };
 

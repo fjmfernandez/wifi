@@ -282,9 +282,9 @@ export class AdminOperationsService {
         (await transaction.organization.create({
           data: {
             tenantId,
-            code: "ENTELSAT",
-            name: "ENTELSAT",
-            legalName: "ENTELSAT",
+            code: "WPASS",
+            name: "WPass",
+            legalName: "WPass by ENTELSAT",
             status: "active",
           },
         }));
@@ -754,7 +754,7 @@ export class AdminOperationsService {
           status: "draft",
           fallbackLocale: "es",
           theme: {
-            brand: "entelsat",
+            brand: "wpass",
             ...(input.logoUrl ? { logoUrl: input.logoUrl } : {}),
             ...(input.primaryColor ? { primaryColor: input.primaryColor } : {}),
           },
@@ -827,7 +827,7 @@ export class AdminOperationsService {
                 version: (currentVersion?.version ?? 0) + 1,
                 status: "draft",
                 fallbackLocale: currentVersion?.fallbackLocale ?? "es",
-                theme: currentVersion?.theme ?? { brand: "entelsat" },
+                theme: currentVersion?.theme ?? { brand: "wpass" },
               },
             });
       await transaction.portalVersion.update({
@@ -839,7 +839,7 @@ export class AdminOperationsService {
             !Array.isArray(version.theme)
               ? version.theme
               : {}) as Record<string, unknown>),
-            brand: "entelsat",
+            brand: "wpass",
             ...(input.logoUrl !== undefined ? { logoUrl: input.logoUrl } : {}),
             ...(input.primaryColor !== undefined ? { primaryColor: input.primaryColor } : {}),
           },

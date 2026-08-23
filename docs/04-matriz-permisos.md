@@ -1,4 +1,4 @@
-# WiFi ENTELSAT — matriz RBAC y alcances
+# WPass — matriz RBAC y alcances
 
 **Estado:** propuesto  
 **Modelo:** permiso atómico + alcance + condiciones  

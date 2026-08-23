@@ -97,11 +97,7 @@ describe("site-agent durable runtime", () => {
       cloud,
       store,
       new CommandGuard(verifier, 30_000, 600_000, now),
-      new RouterCommandExecutor(
-        new PreviewOnlyRouterOsAdapter(),
-        "https://captive.wifi.entelsat.com",
-        now,
-      ),
+      new RouterCommandExecutor(new PreviewOnlyRouterOsAdapter(), "https://captive.wpass.es", now),
       new RuntimeState(),
       noOpLogger,
       now,

@@ -1,4 +1,4 @@
-# WiFi ENTELSAT worker
+# WPass worker
 
 Runtime asíncrono de producción para las colas `accounting`, `outbox`, `exports` y
 `retention`. El binario registra únicamente `accounting`: las demás colas siguen
@@ -89,7 +89,7 @@ Copiar `.env.example` al gestor de secretos de Coolify. Variables esenciales:
 
 Healthcheck recomendado en Coolify: `GET /health/ready` por el puerto
 `WORKER_HEALTH_PORT` (3003 por defecto). La ruta principal pública
-`wifi.entelsat.com` no debe exponer este puerto; úsese solo en la red interna del
+`wpass.es` no debe exponer este puerto; úsese solo en la red interna del
 despliegue.
 
 ## Gates técnicos que siguen abiertos

@@ -32,8 +32,8 @@ export function safeReturnPath(
   )
     return fallback;
   try {
-    const parsed = new URL(input, "https://wifi.entelsat.com");
-    return parsed.origin === "https://wifi.entelsat.com"
+    const parsed = new URL(input, "https://wpass.es");
+    return parsed.origin === "https://wpass.es" || parsed.origin === "https://wifi.entelsat.com"
       ? `${parsed.pathname}${parsed.search}${parsed.hash}`
       : fallback;
   } catch {

@@ -1,16 +1,16 @@
 @import "tailwindcss";
 
 @theme {
-  --color-hotel-50: #edfbfb;
-  --color-hotel-100: #d1f5f4;
-  --color-hotel-200: #a8eae9;
-  --color-hotel-300: #71d9d9;
-  --color-hotel-400: #3fc1c3;
-  --color-hotel-500: #24a4a8;
-  --color-hotel-600: #1b858a;
-  --color-hotel-700: #1b6b70;
-  --color-hotel-800: #1b565a;
-  --color-hotel-900: #19484b;
+  --color-hotel-50: #fff9e6;
+  --color-hotel-100: #ffefb8;
+  --color-hotel-200: #ffe184;
+  --color-hotel-300: #ffd34f;
+  --color-hotel-400: #ffc528;
+  --color-hotel-500: #f1ba1b;
+  --color-hotel-600: #d69d12;
+  --color-hotel-700: #aa7611;
+  --color-hotel-800: #845c15;
+  --color-hotel-900: #555555;
   --font-sans: "Segoe UI", system-ui, -apple-system, sans-serif;
 }
 
@@ -19,7 +19,7 @@
 }
 html {
   min-height: 100%;
-  background: #0d385f;
+  background: #555555;
 }
 body {
   margin: 0;
@@ -35,15 +35,15 @@ button {
   touch-action: manipulation;
 }
 *:focus-visible {
-  outline: 3px solid #71d9d9;
+  outline: 3px solid #f1ba1b;
   outline-offset: 2px;
 }
 
 .portal-background {
   background:
-    radial-gradient(circle at 85% 5%, rgba(63, 193, 195, 0.42), transparent 32rem),
-    radial-gradient(circle at 10% 80%, rgba(255, 204, 128, 0.22), transparent 28rem),
-    linear-gradient(150deg, #0a2a4a 0%, #0d4569 45%, #147179 100%);
+    radial-gradient(circle at 85% 5%, rgba(241, 186, 27, 0.42), transparent 32rem),
+    radial-gradient(circle at 10% 80%, rgba(255, 225, 132, 0.22), transparent 28rem),
+    linear-gradient(150deg, #2f2f2f 0%, #444444 45%, #555555 100%);
 }
 
 @media (prefers-reduced-motion: reduce) {

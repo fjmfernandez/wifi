@@ -1,6 +1,6 @@
 # FreeRADIUS PR05
 
-Base reproducible de FreeRADIUS 3.2.10 para el plano HotSpot de WiFi ENTELSAT. La imagen solo consulta la proyección mínima `radius_runtime`; no llama a la API, no contiene PII y no incorpora secretos en build, Git o logs.
+Base reproducible de FreeRADIUS 3.2.10 para el plano HotSpot de WPass. La imagen solo consulta la proyección mínima `radius_runtime`; no llama a la API, no contiene PII y no incorpora secretos en build, Git o logs.
 
 ## Artefacto y cadena de confianza
 

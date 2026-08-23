@@ -53,7 +53,7 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     }
 
     void response.status(status).send({
-      type: `https://wifi.entelsat.com/problems/http-${status}`,
+      type: `https://wpass.es/problems/http-${status}`,
       title: isValidationError ? "Bad Request" : (body.error ?? HttpStatus[status] ?? "Error"),
       status,
       detail:

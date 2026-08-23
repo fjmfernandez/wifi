@@ -1,4 +1,4 @@
-# WiFi ENTELSAT — plan de entrega en 12 PRs
+# WPass — plan de entrega en 12 PRs
 
 **Estado:** propuesto; no ejecutar hasta aprobar la puerta de decisiones  
 **Objetivo:** MVP demostrable y desplegable sin convertir cada PR en una rama de meses

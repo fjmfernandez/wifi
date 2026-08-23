@@ -1,4 +1,4 @@
-# WiFi ENTELSAT — puerta de decisiones antes del código
+# WPass — puerta de decisiones antes del código
 
 **Estado:** pendiente de aprobación  
 **Fecha de referencia:** 2026-08-15  

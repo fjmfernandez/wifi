@@ -22,10 +22,10 @@ const trustItems = [
 export default function LoginPage() {
   return (
     <main className="grid min-h-dvh bg-white lg:grid-cols-[1.08fr_.92fr]">
-      <section className="relative hidden min-h-dvh overflow-hidden bg-[#07172f] p-12 text-white lg:flex lg:flex-col lg:justify-between xl:p-16">
+      <section className="relative hidden min-h-dvh overflow-hidden bg-[#2f2f2f] p-12 text-white lg:flex lg:flex-col lg:justify-between xl:p-16">
         <div className="grid-noise absolute inset-0 opacity-80" />
         <div className="absolute -right-32 -top-28 size-[36rem] rounded-full bg-brand-500/20 blur-3xl" />
-        <div className="absolute -bottom-32 -left-32 size-[32rem] rounded-full bg-cyan-400/10 blur-3xl" />
+        <div className="absolute -bottom-32 -left-32 size-[32rem] rounded-full bg-brand-200/10 blur-3xl" />
         <div className="relative">
           <Brand inverse />
         </div>
@@ -39,11 +39,11 @@ export default function LoginPage() {
             </span>
           </div>
           <h1 className="text-balance text-4xl font-extrabold leading-[1.08] tracking-[-0.04em] xl:text-5xl">
-            Tu red WiFi, segura y bajo control.
+            WiFi marketing para hoteles y eventos.
           </h1>
           <p className="mt-5 max-w-lg text-pretty text-base leading-7 text-slate-300 xl:text-lg">
-            Gestiona sedes, portales cautivos, acceso de invitados y equipos MikroTik desde una
-            única plataforma profesional.
+            WPass convierte tu red WiFi en una herramienta de acceso, fidelización y captación de
+            contactos con consentimiento.
           </p>
           <div className="mt-9 grid gap-4">
             {trustItems.map(({ icon: Icon, text }) => (
@@ -51,7 +51,7 @@ export default function LoginPage() {
                 key={text}
                 className="flex items-center gap-3 text-sm font-medium text-slate-200"
               >
-                <CheckCircle2 className="size-4 text-cyan-300" />
+                <CheckCircle2 className="size-4 text-brand-300" />
                 <Icon className="size-4 text-slate-500" />
                 {text}
               </div>
@@ -59,7 +59,7 @@ export default function LoginPage() {
           </div>
         </div>
         <div className="relative flex items-center gap-3 text-xs text-slate-500">
-          <Headphones className="size-4" /> Soporte ENTELSAT · Conectamos tecnología y confianza
+          <Headphones className="size-4" /> Soporte WPass · by ENTELSAT
         </div>
       </section>
 
@@ -77,7 +77,7 @@ export default function LoginPage() {
                 Accede a tu cuenta
               </h2>
               <p className="mt-2 text-sm leading-6 text-slate-500">
-                Introduce tus credenciales para administrar tu servicio WiFi.
+                Introduce tus credenciales para administrar tu plataforma WPass.
               </p>
             </div>
             <Suspense fallback={<div className="h-80 animate-pulse rounded-2xl bg-slate-50" />}>
@@ -85,7 +85,7 @@ export default function LoginPage() {
             </Suspense>
           </div>
           <p className="mt-6 text-center text-xs text-slate-400">
-            © 2026 ENTELSAT · Privacidad · Condiciones del servicio
+            © 2026 WPass · by ENTELSAT · Privacidad · Condiciones del servicio
           </p>
         </div>
       </section>

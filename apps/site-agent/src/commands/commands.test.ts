@@ -17,7 +17,7 @@ import type {
 import { canonicalJson, CommandSignatureVerifier } from "../security/command-signature.js";
 import { CommandGuard } from "./command-guard.js";
 
-const captiveOrigin = "https://captive.wifi.entelsat.com";
+const captiveOrigin = "https://captive.wpass.es";
 const provisioningInput = {
   revision: 3,
   mode: "hotspot-only",
@@ -29,7 +29,7 @@ const provisioningInput = {
   captiveOrigin,
   radiusPrimary: "10.80.0.11",
   radiusSecondary: "10.80.0.12",
-  radiusSecretVariable: "$ENTELSAT_RADIUS_SECRET",
+  radiusSecretVariable: "$WPASS_RADIUS_SECRET",
   interimIntervalSeconds: 300,
 } as const;
 

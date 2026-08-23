@@ -47,7 +47,7 @@ interface SavedLinkMaterial {
   generatedAt: string;
 }
 
-const linkStoragePrefix = "entelsat.routerboard.link.";
+const linkStoragePrefix = "wpass.routerboard.link.";
 const linkedFreshnessMs = 10 * 60 * 1000;
 
 function routerQuote(value: string): string {
@@ -61,10 +61,10 @@ function buildLoginHtml(locator: string): string {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="referrer" content="no-referrer">
-  <title>ENTELSAT WiFi</title>
+  <title>WPass WiFi</title>
 </head>
 <body>
-  <form id="entelsat-captive" action="https://captive.wifi.entelsat.com/api/v1/captive/session/start" method="post">
+  <form id="wpass-captive" action="https://captive.wpass.es/api/v1/captive/session/start" method="post">
     <input type="hidden" name="gatewayLocator" value="${locator}">
     <input type="hidden" name="mac" value="$(mac)">
     <input type="hidden" name="ip" value="$(ip)">
@@ -73,7 +73,7 @@ function buildLoginHtml(locator: string): string {
     <input type="hidden" name="error" value="$(error)">
     <noscript><button type="submit">Continuar</button></noscript>
   </form>
-  <script>document.getElementById("entelsat-captive").submit()</script>
+  <script>document.getElementById("wpass-captive").submit()</script>
 </body>
 </html>`;
 }
@@ -87,46 +87,46 @@ function buildRouterScript({
   material: LinkMaterial;
   values: Record<string, string>;
 }): string {
-  const sstpName = values.sstpName || "entelsat-sstp";
+  const sstpName = values.sstpName || "wpass-sstp";
   const hotspotProfile = values.hotspotProfile || "default";
   const hotspotDnsName = material.hotspotDnsName;
   const radiusServerIp = values.radiusServerIp || "10.255.0.1";
   return [
-    "# ENTELSAT WiFi · vinculación RouterBOARD por SSTP Client",
+    "# WPass WiFi · vinculación RouterBOARD por SSTP Client",
     "# Pegar en Terminal de MikroTik después de revisar interfaces y perfil HotSpot.",
     `# Gateway SaaS: ${gateway.name} · NAS-Identifier: ${gateway.nasIdentifier}`,
     "",
-    ':log warning "ENTELSAT: creando SSTP client y RADIUS HotSpot"',
+    ':log warning "WPass: creando SSTP client y RADIUS HotSpot"',
     `/interface sstp-client remove [find name=${routerQuote(sstpName)}]`,
     `/interface sstp-client add name=${routerQuote(sstpName)} connect-to=${routerQuote(
       values.sstpServer,
     )} port=${values.sstpPort || "4443"} user=${routerQuote(values.sstpUser)} password=${routerQuote(
       values.sstpPassword,
     )} authentication=mschap2 profile=default-encryption add-default-route=no verify-server-certificate=no disabled=no`,
-    `/ip route remove [find comment=${routerQuote("ENTELSAT RADIUS via SSTP")}]`,
+    `/ip route remove [find comment=${routerQuote("WPass RADIUS via SSTP")}]`,
     `/ip route add dst-address=${radiusServerIp}/32 gateway=${routerQuote(
       sstpName,
-    )} comment=${routerQuote("ENTELSAT RADIUS via SSTP")}`,
+    )} comment=${routerQuote("WPass RADIUS via SSTP")}`,
     `/system identity set name=${routerQuote(gateway.nasIdentifier)}`,
-    `/radius remove [find comment=${routerQuote("ENTELSAT SaaS")}]`,
+    `/radius remove [find comment=${routerQuote("WPass SaaS")}]`,
     `/radius add service=hotspot address=${radiusServerIp} secret=${routerQuote(
       material.radiusSecret,
     )} authentication-port=1812 accounting-port=1813 timeout=1500ms comment=${routerQuote(
-      "ENTELSAT SaaS",
+      "WPass SaaS",
     )}`,
     `/ip hotspot profile set [find name=${routerQuote(
       hotspotProfile,
     )}] use-radius=yes radius-accounting=yes radius-interim-update=5m login-by=http-pap,https dns-name=${routerQuote(
       hotspotDnsName,
     )}`,
-    `/ip hotspot walled-garden remove [find comment=${routerQuote("ENTELSAT captive")}]`,
+    `/ip hotspot walled-garden remove [find comment=${routerQuote("WPass captive")}]`,
     `/ip hotspot walled-garden add dst-host=${routerQuote(
-      "captive.wifi.entelsat.com",
-    )} comment=${routerQuote("ENTELSAT captive")}`,
+      "captive.wpass.es",
+    )} comment=${routerQuote("WPass captive")}`,
     `/tool fetch url=${routerQuote(
-      `https://captive.wifi.entelsat.com/api/v1/captive/gateway/ping?gatewayLocator=${material.gatewayLocator}`,
+      `https://captive.wpass.es/api/v1/captive/gateway/ping?gatewayLocator=${material.gatewayLocator}`,
     )} mode=https output=user check-certificate=no`,
-    ':log warning "ENTELSAT: sube el login.html generado a Files/hotspot/login.html"',
+    ':log warning "WPass: sube el login.html generado a Files/hotspot/login.html"',
     "/radius print detail",
     `/ping ${radiusServerIp} count=3`,
   ].join("\n");
@@ -344,7 +344,7 @@ export default function RouterBoardLinkPage() {
                 name="sstpServer"
                 required
                 defaultValue="62.84.190.174"
-                placeholder="Servidor SSTP, ej. vpn.entelsat.com"
+                placeholder="Servidor SSTP, ej. wpass.es"
                 className={inputClass}
               />
               <input
@@ -356,7 +356,7 @@ export default function RouterBoardLinkPage() {
               />
               <input
                 name="sstpName"
-                defaultValue="entelsat-sstp"
+                defaultValue="wpass-sstp"
                 placeholder="Nombre interfaz SSTP"
                 className={inputClass}
               />
@@ -392,7 +392,7 @@ export default function RouterBoardLinkPage() {
               <input
                 name="hotspotDnsName"
                 required
-                defaultValue="login.entelsat.local"
+                defaultValue="login.wpass.local"
                 placeholder="DNS HotSpot local"
                 className={inputClass}
               />

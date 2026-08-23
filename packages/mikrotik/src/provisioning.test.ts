@@ -14,10 +14,10 @@ const input = {
   hotspotName: "guest-hotspot",
   guestInterface: "vlan-guest",
   dnsName: "wifi-login.miramar.example",
-  captiveOrigin: "https://captive.wifi.entelsat.com",
+  captiveOrigin: "https://captive.wpass.es",
   radiusPrimary: "10.80.0.11",
   radiusSecondary: "10.80.0.12",
-  radiusSecretVariable: "$ENTELSAT_RADIUS_SECRET",
+  radiusSecretVariable: "$WPASS_RADIUS_SECRET",
   interimIntervalSeconds: 300,
 } as const;
 

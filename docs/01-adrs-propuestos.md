@@ -1,4 +1,4 @@
-# WiFi ENTELSAT — ADRs propuestos
+# WPass — ADRs propuestos
 
 **Estado global:** propuesto; requiere aprobación  
 **Fecha de referencia:** 2026-08-15  

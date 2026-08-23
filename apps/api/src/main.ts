@@ -44,7 +44,7 @@ async function bootstrap(): Promise<void> {
 
   if (config.get("SWAGGER_ENABLED", { infer: true })) {
     const swagger = new DocumentBuilder()
-      .setTitle("WiFi ENTELSAT API")
+      .setTitle("WPass API")
       .setDescription("API de control, portal cautivo, sesiones y aprovisionamiento")
       .setVersion("1.0")
       .addBearerAuth()
@@ -57,7 +57,7 @@ async function bootstrap(): Promise<void> {
   const port = config.get("PORT", { infer: true });
   const host = config.get("HOST", { infer: true });
   await app.listen(port, host);
-  app.get(PinoLogger).log(`WiFi API escuchando en ${host}:${port}`);
+  app.get(PinoLogger).log(`WPass API escuchando en ${host}:${port}`);
 }
 
 void bootstrap();

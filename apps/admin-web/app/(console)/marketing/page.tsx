@@ -112,7 +112,7 @@ export default function MarketingPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `entelsat-marketing-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `wpass-marketing-${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   }

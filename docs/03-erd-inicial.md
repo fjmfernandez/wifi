@@ -1,4 +1,4 @@
-# WiFi ENTELSAT — ERD inicial del MVP
+# WPass — ERD inicial del MVP
 
 **Estado:** propuesto  
 **Fecha:** 2026-08-15  

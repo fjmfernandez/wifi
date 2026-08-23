@@ -1,4 +1,4 @@
-# Despliegue de WiFi ENTELSAT en Coolify
+# Despliegue de WPass en Coolify
 
 Esta plantilla despliega el plano web en una única pila Docker Compose. No publica PostgreSQL, Redis, la API ni el worker directamente; el panel y el portal consumen `/api/v1` mediante su proxy interno de mismo origen.
 
@@ -20,8 +20,8 @@ El `build.context` de los servicios debe permanecer como `.`. Coolify ejecuta Co
 
 Cuando Coolify cargue el Compose, asigna:
 
-- servicio `admin`, puerto interno `3000`: `https://wifi.entelsat.com:3000`;
-- servicio `captive`, puerto interno `3002`: `https://captive.wifi.entelsat.com:3002`.
+- servicio `admin`, puerto interno `3000`: `https://wpass.es:3000`;
+- servicio `captive`, puerto interno `3002`: `https://captive.wpass.es:3002`.
 
 El puerto indica a qué puerto interno debe dirigir Coolify; el navegador seguirá usando HTTPS 443. No asignes dominio ni puerto público a `api`, `worker`, `migrate`, `postgres` o `redis`.
 
@@ -33,7 +33,7 @@ Carga todas las variables de `.env.example` desde el almacén de secretos de Coo
 
 ## Orden de puesta en marcha
 
-1. Configura DNS `A/AAAA` de `wifi.entelsat.com` y `captive.wifi.entelsat.com` hacia Coolify.
+1. Configura DNS `A/AAAA` de `wpass.es` y `captive.wpass.es` hacia Coolify.
 2. Crea la pila sin desplegar y carga secretos.
 3. La tarea `migrate` usa exclusivamente `wifi_bootstrap`, crea o rota los logins runtime y aplica migraciones antes de arrancar la API y el worker. `wifi_migrator` es un rol interno `NOLOGIN`; la API y el worker nunca reciben el secreto bootstrap.
 4. Despliega y exige healthchecks verdes antes de enrutar tráfico.
@@ -48,9 +48,9 @@ La pila no crea ningún usuario: `migrate` sólo aplica el esquema y rota los lo
 ```bash
 docker compose -f infra/coolify/compose.production.yml exec \
   -e BOOTSTRAP_DATABASE_URL="postgresql://wifi_bootstrap:$POSTGRES_BOOTSTRAP_PASSWORD@postgres:5432/wifi_entelsat" \
-  -e BOOTSTRAP_TENANT_SLUG=entelsat \
-  -e BOOTSTRAP_TENANT_NAME="ENTELSAT" \
-  -e BOOTSTRAP_ADMIN_EMAIL=admin@entelsat.com \
+  -e BOOTSTRAP_TENANT_SLUG=wpass \
+  -e BOOTSTRAP_TENANT_NAME="WPass" \
+  -e BOOTSTRAP_ADMIN_EMAIL=admin@wpass.es \
   -e BOOTSTRAP_ADMIN_PASSWORD='<contraseña de 16 caracteres o más>' \
   -e DATA_ENCRYPTION_KEY_VERSION=env-v1 \
   api node apps/api/dist/cli/bootstrap-admin.js --show-secrets-once

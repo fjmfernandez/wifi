@@ -2,17 +2,17 @@
 @source "../../../packages/ui/src";
 
 @theme {
-  --color-brand-50: #eef7ff;
-  --color-brand-100: #d9ecff;
-  --color-brand-200: #bce0ff;
-  --color-brand-300: #8eccff;
-  --color-brand-400: #59adff;
-  --color-brand-500: #338cff;
-  --color-brand-600: #1a6cf5;
-  --color-brand-700: #1558e1;
-  --color-brand-800: #1949b6;
-  --color-brand-900: #1a408f;
-  --color-brand-950: #142957;
+  --color-brand-50: #fff9e6;
+  --color-brand-100: #ffefb8;
+  --color-brand-200: #ffe184;
+  --color-brand-300: #ffd34f;
+  --color-brand-400: #ffc528;
+  --color-brand-500: #f1ba1b;
+  --color-brand-600: #d69d12;
+  --color-brand-700: #aa7611;
+  --color-brand-800: #845c15;
+  --color-brand-900: #6b4b16;
+  --color-brand-950: #3d2a0a;
   --font-sans: "Inter", "Segoe UI", system-ui, sans-serif;
 }
 
@@ -38,8 +38,8 @@ textarea {
   font: inherit;
 }
 ::selection {
-  background: #bce0ff;
-  color: #142957;
+  background: #ffe184;
+  color: #3d2a0a;
 }
 
 .grid-noise {

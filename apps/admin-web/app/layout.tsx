@@ -4,12 +4,12 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "WiFi ENTELSAT", template: "%s · WiFi ENTELSAT" },
-  description: "Gestión segura de WiFi, portales cautivos y acceso para organizaciones multisede.",
+  title: { default: "WPass", template: "%s · WPass" },
+  description: "WiFi marketing, portales cautivos y vouchers para hoteles y eventos.",
   robots: { index: false, follow: false },
 };
 
-export const viewport: Viewport = { colorScheme: "light", themeColor: "#f8fafc" };
+export const viewport: Viewport = { colorScheme: "light", themeColor: "#f1ba1b" };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (

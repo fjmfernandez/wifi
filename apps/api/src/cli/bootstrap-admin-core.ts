@@ -31,7 +31,7 @@ const bootstrapEnvironmentSchema = z
     BOOTSTRAP_TIMEZONE: z.string().trim().min(3).max(64).default("Europe/Madrid"),
     BOOTSTRAP_ADMIN_EMAIL: normalizedAdminEmailSchema,
     BOOTSTRAP_ADMIN_PASSWORD: z.string().min(16).max(1024),
-    BOOTSTRAP_TOTP_ISSUER: z.string().trim().min(1).max(64).default("Entelsat WiFi"),
+    BOOTSTRAP_TOTP_ISSUER: z.string().trim().min(1).max(64).default("WPass"),
     BOOTSTRAP_TOTP_LABEL: z.string().trim().min(1).max(80).default("Autenticador principal"),
     ADMIN_EMAIL_HMAC_KEY_BASE64: base64UrlKey,
     DATA_ENCRYPTION_MASTER_KEY_BASE64: base64UrlKey,
@@ -95,7 +95,7 @@ export interface AdminBootstrapOneTimeOutput {
 }
 
 const permissionDescriptions = permissionIds.map(
-  (permission) => `Permiso operativo Entelsat WiFi: ${permission}`,
+  (permission) => `Permiso operativo WPass: ${permission}`,
 );
 
 function encodeBase32(value: Uint8Array): string {
