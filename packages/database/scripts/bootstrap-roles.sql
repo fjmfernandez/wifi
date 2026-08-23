@@ -67,7 +67,7 @@ $roles$;
 
 ALTER ROLE wifi_api LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS NOREPLICATION;
 ALTER ROLE wifi_jobs LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS NOREPLICATION;
-ALTER ROLE wifi_radius LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS NOREPLICATION;
+ALTER ROLE wifi_radius LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE INHERIT NOBYPASSRLS NOREPLICATION;
 
 SELECT format('ALTER ROLE wifi_api PASSWORD %L', :'wifi_api_password') \gexec
 SELECT format('ALTER ROLE wifi_jobs PASSWORD %L', :'wifi_jobs_password') \gexec
@@ -75,7 +75,7 @@ SELECT format('ALTER ROLE wifi_radius PASSWORD %L', :'wifi_radius_password') \ge
 
 GRANT wifi_app_runtime TO wifi_api WITH INHERIT FALSE, SET TRUE;
 GRANT wifi_worker TO wifi_jobs WITH INHERIT FALSE, SET TRUE;
-GRANT wifi_radius_runtime TO wifi_radius WITH INHERIT FALSE, SET TRUE;
+GRANT wifi_radius_runtime TO wifi_radius WITH INHERIT TRUE, SET TRUE;
 
 ALTER ROLE wifi_api SET row_security = on;
 ALTER ROLE wifi_jobs SET row_security = on;
@@ -89,4 +89,4 @@ ALTER ROLE wifi_radius SET idle_in_transaction_session_timeout = '10s';
 
 COMMENT ON ROLE wifi_api IS 'LOGIN only; must SET ROLE wifi_app_runtime after connecting.';
 COMMENT ON ROLE wifi_jobs IS 'LOGIN only; must SET ROLE wifi_worker after connecting.';
-COMMENT ON ROLE wifi_radius IS 'LOGIN only; must SET ROLE wifi_radius_runtime after connecting.';
+COMMENT ON ROLE wifi_radius IS 'LOGIN only; inherits the narrow wifi_radius_runtime role used by FreeRADIUS.';

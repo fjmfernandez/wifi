@@ -193,7 +193,7 @@ export class CaptiveService {
     const credential = {
       username: `cap_${generateOpaqueToken(24)}`,
       password: generateOpaqueToken(32),
-      expiresAt: new Date(Date.now() + 2 * 60_000),
+      expiresAt: new Date(Date.now() + 15 * 60_000),
     };
     try {
       return await this.repository.issueAuthorization(stateDigest, request, credential);
