@@ -586,6 +586,7 @@ export class PrismaCaptiveRepository implements CaptiveRepository {
     const heroProps = asObject(heroBlock?.props);
     const theme = asObject(portalVersion?.theme);
     const logoUrl = readNonEmptyString(theme["logoUrl"]);
+    const redirectUrl = readNonEmptyString(theme["redirectUrl"]);
     const primaryColor = readNonEmptyString(theme["primaryColor"]);
     return {
       tenantId: route.tenantId,
@@ -608,6 +609,7 @@ export class PrismaCaptiveRepository implements CaptiveRepository {
                 readNonEmptyString(heroProps["body"]) ??
                 "Introduce tus datos para acceder al WiFi.",
               ...(logoUrl ? { logoUrl } : {}),
+              ...(redirectUrl ? { redirectUrl } : {}),
               ...(primaryColor ? { primaryColor } : {}),
             },
           }

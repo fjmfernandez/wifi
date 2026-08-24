@@ -119,6 +119,14 @@ $(endif)
 }`;
 }
 
+function buildRouterRedirectHtml(): string {
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0; url=$(link-redirect)"><title>Conectado</title></head><body><script>location.href="$(link-redirect)"</script></body></html>`;
+}
+
+function buildRouterStatusHtml(): string {
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WiFi conectado</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f8fafc;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#0f172a}.card{width:min(380px,calc(100vw - 32px));border:1px solid #e2e8f0;border-radius:28px;background:#fff;padding:26px;text-align:center;box-shadow:0 24px 70px rgba(15,23,42,.10)}a{color:#0f766e;font-weight:900}</style></head><body><main class="card"><h1>Conectado</h1><p>Ya tienes acceso a Internet.</p><p><a href="$(link-logout)">Cerrar sesión</a></p></main></body></html>`;
+}
+
 function buildRouterScript({
   gateway,
   material,
@@ -140,6 +148,8 @@ function buildRouterScript({
   const captiveIp = values.captiveIp || "62.84.190.174";
   const loginHtml = buildLoginHtml(material.gatewayLocator).replace(/\s+/g, " ").trim();
   const apiJson = buildApiJson().replace(/\s+/g, " ").trim();
+  const redirectHtml = buildRouterRedirectHtml().replace(/\s+/g, " ").trim();
+  const statusHtml = buildRouterStatusHtml().replace(/\s+/g, " ").trim();
   return [
     "# WPass WiFi · alta rapida RouterBOARD por SSTP Client + HotSpot + RADIUS",
     "# Pegar en Terminal de MikroTik tras revisar la interfaz de clientes y la IP del HotSpot.",
@@ -215,6 +225,18 @@ function buildRouterScript({
     `/file remove [find name=${routerQuote(`${htmlDirectory}/api.json`)}]`,
     `/file add name=${routerQuote(`${htmlDirectory}/api.json`)} contents=${routerFileQuote(
       apiJson,
+    )}`,
+    `/file remove [find name=${routerQuote(`${htmlDirectory}/alogin.html`)}]`,
+    `/file add name=${routerQuote(`${htmlDirectory}/alogin.html`)} contents=${routerFileQuote(
+      redirectHtml,
+    )}`,
+    `/file remove [find name=${routerQuote(`${htmlDirectory}/redirect.html`)}]`,
+    `/file add name=${routerQuote(`${htmlDirectory}/redirect.html`)} contents=${routerFileQuote(
+      redirectHtml,
+    )}`,
+    `/file remove [find name=${routerQuote(`${htmlDirectory}/status.html`)}]`,
+    `/file add name=${routerQuote(`${htmlDirectory}/status.html`)} contents=${routerFileQuote(
+      statusHtml,
     )}`,
     `/tool fetch url=${routerQuote(
       `https://captive.wpass.es/api/v1/captive/gateway/ping?gatewayLocator=${material.gatewayLocator}`,

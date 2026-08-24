@@ -45,6 +45,7 @@ interface PortalView {
   headline: string | null;
   body: string | null;
   logoUrl: string | null;
+  redirectUrl: string | null;
   primaryColor: string | null;
   siteNames: string[];
   publications: PortalPublicationView[];
@@ -141,6 +142,7 @@ export default function PortalsPage() {
           headline: data.get("headline") || undefined,
           body: data.get("body") || undefined,
           logoUrl: await logoValue(data),
+          redirectUrl: data.get("redirectUrl") || undefined,
           primaryColor: data.get("primaryColor") || undefined,
         }),
       });
@@ -167,6 +169,7 @@ export default function PortalsPage() {
           headline: data.get("headline") || undefined,
           body: data.get("body") || undefined,
           logoUrl: await logoValue(data),
+          redirectUrl: data.get("redirectUrl") || undefined,
           primaryColor: data.get("primaryColor") || undefined,
         }),
       });
@@ -288,6 +291,12 @@ export default function PortalsPage() {
             className={inputClass}
           />
           <input
+            name="redirectUrl"
+            type="url"
+            placeholder="Redirección final, ej. https://www.entelsat.com/"
+            className={inputClass}
+          />
+          <input
             name="logoFile"
             type="file"
             accept="image/png,image/jpeg,image/webp,image/svg+xml"
@@ -394,6 +403,18 @@ export default function PortalsPage() {
                 />
               </label>
               <label className="grid gap-1.5 text-xs font-bold text-slate-700">
+                Redirección tras acceder
+                <input
+                  name="redirectUrl"
+                  type="url"
+                  defaultValue={editingPortal.redirectUrl ?? "https://www.entelsat.com/"}
+                  className={inputClass}
+                />
+                <span className="font-medium leading-5 text-slate-500">
+                  Página a la que irá el cliente cuando MikroTik le dé acceso.
+                </span>
+              </label>
+              <label className="grid gap-1.5 text-xs font-bold text-slate-700">
                 Subir logo
                 <input
                   name="logoFile"
@@ -496,6 +517,9 @@ function PortalCard({
                   style={{ backgroundColor: portalColor(portal) }}
                 >
                   Acceder a Internet
+                </span>
+                <span className="mt-3 block truncate text-[10px] font-semibold text-slate-400">
+                  Después: {portal.redirectUrl ?? "https://www.entelsat.com/"}
                 </span>
               </div>
             </div>

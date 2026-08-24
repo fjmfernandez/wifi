@@ -90,6 +90,7 @@ const portalInputSchema = z.object({
   headline: z.string().trim().max(160).optional(),
   body: z.string().trim().max(500).optional(),
   logoUrl: z.union([z.url().max(500), logoDataUrlSchema]).optional(),
+  redirectUrl: z.url().max(500).optional(),
   primaryColor: z
     .string()
     .trim()

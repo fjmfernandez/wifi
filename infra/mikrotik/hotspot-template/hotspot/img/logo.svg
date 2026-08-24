@@ -1,0 +1,7 @@
+<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="160" height="160" rx="40" fill="#0f172a"/>
+  <path d="M42 68c21-21 55-21 76 0" stroke="#2dd4bf" stroke-width="12" stroke-linecap="round"/>
+  <path d="M58 86c12-12 32-12 44 0" stroke="#67e8f9" stroke-width="12" stroke-linecap="round"/>
+  <path d="M74 104c3.5-3.5 8.5-3.5 12 0" stroke="#f8fafc" stroke-width="12" stroke-linecap="round"/>
+  <text x="80" y="132" text-anchor="middle" fill="#f8fafc" font-family="Arial, sans-serif" font-size="24" font-weight="800">WP</text>
+</svg>

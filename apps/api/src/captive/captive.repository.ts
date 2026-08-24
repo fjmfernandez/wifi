@@ -23,6 +23,7 @@ export interface CaptiveGatewayContext {
     headline: string;
     body: string;
     logoUrl?: string;
+    redirectUrl?: string;
     primaryColor?: string;
   };
 }

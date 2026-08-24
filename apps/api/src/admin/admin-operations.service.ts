@@ -51,6 +51,7 @@ export interface CreatePortalInput {
   headline?: string | undefined;
   body?: string | undefined;
   logoUrl?: string | undefined;
+  redirectUrl?: string | undefined;
   primaryColor?: string | undefined;
 }
 
@@ -103,6 +104,7 @@ export interface UpdatePortalInput {
   headline?: string | undefined;
   body?: string | undefined;
   logoUrl?: string | undefined;
+  redirectUrl?: string | undefined;
   primaryColor?: string | undefined;
 }
 
@@ -771,6 +773,7 @@ export class AdminOperationsService {
           headline: readOptionalString(heroProps["headline"]),
           body: readOptionalString(heroProps["body"]),
           logoUrl: readOptionalString(theme["logoUrl"]),
+          redirectUrl: readOptionalString(theme["redirectUrl"]),
           primaryColor: readOptionalString(theme["primaryColor"]),
           publications:
             version?.publications.map((publication) => ({
@@ -806,6 +809,7 @@ export class AdminOperationsService {
           theme: {
             brand: "wpass",
             ...(input.logoUrl ? { logoUrl: input.logoUrl } : {}),
+            ...(input.redirectUrl ? { redirectUrl: input.redirectUrl } : {}),
             ...(input.primaryColor ? { primaryColor: input.primaryColor } : {}),
           },
         },
@@ -842,6 +846,7 @@ export class AdminOperationsService {
         headline: input.headline ?? "Bienvenido al WiFi",
         body: input.body ?? "Acepta las condiciones para acceder a Internet.",
         logoUrl: input.logoUrl ?? null,
+        redirectUrl: input.redirectUrl ?? null,
         primaryColor: input.primaryColor ?? null,
         publications: [],
         siteNames: [],
@@ -892,6 +897,7 @@ export class AdminOperationsService {
               : {}) as Record<string, unknown>),
             brand: "wpass",
             ...(input.logoUrl !== undefined ? { logoUrl: input.logoUrl } : {}),
+            ...(input.redirectUrl !== undefined ? { redirectUrl: input.redirectUrl } : {}),
             ...(input.primaryColor !== undefined ? { primaryColor: input.primaryColor } : {}),
           },
         },
@@ -931,6 +937,7 @@ export class AdminOperationsService {
         headline: input.headline ?? "Bienvenido al WiFi",
         body: input.body ?? "Acepta las condiciones para acceder a Internet.",
         logoUrl: input.logoUrl ?? null,
+        redirectUrl: input.redirectUrl ?? null,
         primaryColor: input.primaryColor ?? null,
         publications: [],
         siteNames: [],
@@ -997,6 +1004,7 @@ export class AdminOperationsService {
           readOptionalString(heroProps["body"]) ??
           "Acepta las condiciones para acceder a Internet.",
         logoUrl: readOptionalString(theme["logoUrl"]),
+        redirectUrl: readOptionalString(theme["redirectUrl"]),
         primaryColor: readOptionalString(theme["primaryColor"]),
       };
       const publication = await transaction.portalPublication.create({

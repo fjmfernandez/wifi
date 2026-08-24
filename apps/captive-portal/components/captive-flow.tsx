@@ -30,6 +30,7 @@ type CaptiveContext = {
     headline: string;
     body: string;
     logoUrl?: string;
+    redirectUrl?: string;
     primaryColor?: string;
   };
 };
@@ -119,6 +120,7 @@ export function CaptiveFlow() {
   const [authorization, setAuthorization] = useState<CaptiveAuthorizationResult>();
   const t = copy[language];
   const primaryColor = context?.portal?.primaryColor ?? "#0d9488";
+  const redirectUrl = context?.portal?.redirectUrl ?? "https://www.entelsat.com/";
   const selectedLegalVersion =
     context?.legalVersions.find((version) => version.locale === language) ??
     context?.legalVersions[0];
@@ -282,7 +284,7 @@ export function CaptiveFlow() {
           <form action={authorization.loginUrl} method="post" className="mt-7">
             <input type="hidden" name="username" value={authorization.username} />
             <input type="hidden" name="password" value={authorization.password} />
-            <input type="hidden" name="dst" value="https://www.entelsat.com/" />
+            <input type="hidden" name="dst" value={redirectUrl} />
             <input type="hidden" name="popup" value="false" />
             <button
               type="submit"
