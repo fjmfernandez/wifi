@@ -51,10 +51,20 @@ render_client_ip_ranges() {
   ranges="$1"
   case "$ranges" in
     ''|'0.0.0.0/0')
-      # accel-ppp may reject /0 as an empty client source filter. Split the
-      # full IPv4 space into two /1 ranges so any RouterBOARD public/NAT IP is
-      # accepted while keeping the required [client-ip-range] section explicit.
-      printf '%s\n%s\n' "0.0.0.0/1" "128.0.0.0/1"
+      # accel-ppp rejects a PPP peer IP when it overlaps with [client-ip-range].
+      # The SSTP peer pool is 10.255.0.0/24, so "accept any router" must not
+      # include 10.0.0.0/8. RouterBOARDs arrive through their public/NAT source
+      # IPs, not through 10.255.0.0/24, so these ranges keep onboarding open
+      # while avoiding the IPCP "requested IP cannot be assigned" disconnect.
+      printf '%s\n' \
+        "0.0.0.0/5" \
+        "8.0.0.0/7" \
+        "11.0.0.0/8" \
+        "12.0.0.0/6" \
+        "16.0.0.0/4" \
+        "32.0.0.0/3" \
+        "64.0.0.0/2" \
+        "128.0.0.0/1"
       return
       ;;
   esac

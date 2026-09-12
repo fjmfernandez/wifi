@@ -52,8 +52,8 @@ SSTP_MPPE=prefer
 ```
 
 `SSTP_CLIENT_IP_RANGE=0.0.0.0/0` significa “aceptar routers desde cualquier IP pública”.
-El contenedor lo escribe internamente como dos rangos compatibles con `accel-ppp`:
-`0.0.0.0/1` y `128.0.0.0/1`.
+El contenedor no lo escribe literalmente: `accel-ppp` corta la sesión si el rango de IP origen de clientes se solapa con el pool PPP `10.255.0.0/24`.
+Por eso el entrypoint lo convierte a rangos públicos amplios que excluyen `10.0.0.0/8`.
 
 Cuando tengas IP pública fija del RouterBOARD, puedes cerrar `SSTP_CLIENT_IP_RANGE`, por ejemplo `62.175.165.90/32`.
 Si necesitas permitir varias IPs fijas, puedes separarlas por comas o líneas:
