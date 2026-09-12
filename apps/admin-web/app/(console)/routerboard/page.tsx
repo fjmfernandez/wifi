@@ -144,6 +144,8 @@ function buildRouterScript({
   const htmlDirectory = normalizeRouterToken(values.htmlDirectory || "hotspot", "hotspot");
   const hotspotDnsName = material.hotspotDnsName;
   const radiusServerIp = values.radiusServerIp || "10.255.0.1";
+  const sstpPort = values.sstpPort || "4443";
+  const sstpConnectToWithPort = `${values.sstpServer}:${sstpPort}`;
   const captiveHost = "captive.wpass.es";
   const captiveIp = values.captiveIp || "62.84.190.174";
   const loginHtml = buildLoginHtml(material.gatewayLocator).replace(/\s+/g, " ").trim();
@@ -158,11 +160,17 @@ function buildRouterScript({
     "",
     ':log warning "WPass: creando SSTP client y RADIUS HotSpot"',
     `/interface sstp-client remove [find name=${routerQuote(sstpName)}]`,
-    `/interface sstp-client add name=${routerQuote(sstpName)} connect-to=${routerQuote(
+    `:do { /interface sstp-client add name=${routerQuote(sstpName)} connect-to=${routerQuote(
       values.sstpServer,
-    )} port=${values.sstpPort || "4443"} user=${routerQuote(values.sstpUser)} password=${routerQuote(
+    )} port=${sstpPort} user=${routerQuote(values.sstpUser)} password=${routerQuote(
       values.sstpPassword,
-    )} authentication=mschap2 profile=default-encryption add-default-route=no verify-server-certificate=no disabled=no`,
+    )} authentication=mschap2 profile=default-encryption add-default-route=no verify-server-certificate=no disabled=no } on-error={ /interface sstp-client add name=${routerQuote(
+      sstpName,
+    )} connect-to=${routerQuote(sstpConnectToWithPort)} user=${routerQuote(
+      values.sstpUser,
+    )} password=${routerQuote(
+      values.sstpPassword,
+    )} authentication=mschap2 profile=default-encryption add-default-route=no verify-server-certificate=no disabled=no }`,
     `/ip dns set allow-remote-requests=yes query-server-timeout=1s query-total-timeout=2s cache-size=4096KiB`,
     `/ip dns static remove [find comment=${routerQuote("WPass captive")}]`,
     `/ip dns static remove [find comment=${routerQuote("WPass SaaS")}]`,
