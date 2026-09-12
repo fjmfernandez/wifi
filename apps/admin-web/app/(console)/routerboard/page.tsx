@@ -583,6 +583,11 @@ export default function RouterBoardLinkPage() {
             El secreto RADIUS solo aparece al generar. Guárdalo en Coolify; no se guarda visible en
             la base de datos.
           </p>
+          <p className="mt-3 rounded-xl bg-sky-50 p-3 text-xs font-semibold leading-5 text-sky-800">
+            Si el SSTP muestra “IP is out of client-ip-range”, deja
+            `SSTP_CLIENT_IP_RANGE=0.0.0.0/0` para pruebas o limita esa variable a la IP pública fija
+            del RouterBOARD, por ejemplo `62.175.165.90/32`.
+          </p>
         </Card>
       </div>
 

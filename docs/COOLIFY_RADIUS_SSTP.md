@@ -50,7 +50,16 @@ SSTP_POOL=10.255.0.2-254
 SSTP_CLIENT_IP_RANGE=0.0.0.0/0
 ```
 
+`SSTP_CLIENT_IP_RANGE=0.0.0.0/0` significa “aceptar routers desde cualquier IP pública”.
+El contenedor lo escribe internamente como dos rangos compatibles con `accel-ppp`:
+`0.0.0.0/1` y `128.0.0.0/1`.
+
 Cuando tengas IP pública fija del RouterBOARD, puedes cerrar `SSTP_CLIENT_IP_RANGE`, por ejemplo `62.175.165.90/32`.
+Si necesitas permitir varias IPs fijas, puedes separarlas por comas o líneas:
+
+```env
+SSTP_CLIENT_IP_RANGE=62.175.165.90/32,88.12.34.56/32
+```
 
 El contenedor crea `/dev/ppp` al arrancar y se ejecuta en modo privilegiado porque PPP/SSTP necesita acceso de red de bajo nivel. Aun así, si el kernel del VPS no tiene PPP cargado, ejecútalo una vez en el host:
 

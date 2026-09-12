@@ -46,6 +46,28 @@ validate_identifier() {
   esac
 }
 
+render_client_ip_ranges() {
+  ranges="$1"
+  case "$ranges" in
+    ''|'0.0.0.0/0')
+      # accel-ppp may reject /0 as an empty client source filter. Split the
+      # full IPv4 space into two /1 ranges so any RouterBOARD public/NAT IP is
+      # accepted while keeping the required [client-ip-range] section explicit.
+      printf '%s\n%s\n' "0.0.0.0/1" "128.0.0.0/1"
+      return
+      ;;
+  esac
+
+  printf '%s\n' "$ranges" | tr ',' '\n' | while IFS= read -r range; do
+    range="$(printf '%s' "$range" | tr -d '[:space:]')"
+    case "$range" in
+      '') continue ;;
+      *.*.*.*/*) printf '%s\n' "$range" ;;
+      *) die "SSTP_CLIENT_IP_RANGE must contain IPv4 CIDR ranges" ;;
+    esac
+  done
+}
+
 case "$runtime_dir" in
   /run/*) ;;
   *) die "SSTP_RUNTIME_DIR must stay below /run" ;;
@@ -112,6 +134,7 @@ rm -f "$users_source"
 
 radius_ip="$(getent hosts "$radius_host" | awk '{print $1; exit}')"
 [ -n "$radius_ip" ] || die "could not resolve RADIUS_HOST=$radius_host"
+client_ip_ranges="$(render_client_ip_ranges "$sstp_client_ip_range")"
 
 sysctl -w net.ipv4.ip_forward=1 >/dev/null || true
 
@@ -168,7 +191,7 @@ gw-ip-address=$sstp_local_ip
 $sstp_pool,sstp
 
 [client-ip-range]
-$sstp_client_ip_range
+$client_ip_ranges
 
 [chap-secrets]
 gw-ip-address=$sstp_local_ip
