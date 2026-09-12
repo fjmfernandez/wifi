@@ -48,6 +48,7 @@ SSTP_PORT=4443
 SSTP_LOCAL_IP=10.255.0.1
 SSTP_POOL=10.255.0.2-254
 SSTP_CLIENT_IP_RANGE=0.0.0.0/0
+SSTP_MPPE=prefer
 ```
 
 `SSTP_CLIENT_IP_RANGE=0.0.0.0/0` significa “aceptar routers desde cualquier IP pública”.
@@ -97,8 +98,11 @@ El script usa:
 ```text
 connect-to=62.84.190.174
 port=4443
+profile=default
 verify-server-certificate=no
 ```
+
+Usa `profile=default`, no `default-encryption`. SSTP ya cifra el túnel con TLS; forzar MPPE puede dejar algunos RouterBOARD en “authenticated” y cortar inmediatamente con `internal error (6)`.
 
 Para producción estricta, sustituye el certificado autosignado por un certificado real y activa la verificación en RouterOS.
 

@@ -18,6 +18,7 @@ sstp_pool="${SSTP_POOL:-10.255.0.2-254}"
 sstp_client_ip_range="${SSTP_CLIENT_IP_RANGE:-0.0.0.0/0}"
 sstp_dns1="${SSTP_DNS1:-1.1.1.1}"
 sstp_dns2="${SSTP_DNS2:-8.8.8.8}"
+sstp_mppe="${SSTP_MPPE:-prefer}"
 radius_host="${RADIUS_HOST:-radius}"
 
 die() {
@@ -80,6 +81,10 @@ esac
 validate_ipv4 "SSTP_LOCAL_IP" "$sstp_local_ip"
 validate_ipv4 "SSTP_DNS1" "$sstp_dns1"
 validate_ipv4 "SSTP_DNS2" "$sstp_dns2"
+case "$sstp_mppe" in
+  deny|allow|prefer|require) ;;
+  *) die "SSTP_MPPE must be one of: deny, allow, prefer, require" ;;
+esac
 
 install -d -m 0750 "$runtime_dir"
 
@@ -171,7 +176,7 @@ min-mtu=1280
 mtu=1400
 mru=1400
 ipv4=require
-mppe=require
+mppe=$sstp_mppe
 
 [sstp]
 bind=$sstp_bind

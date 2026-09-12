@@ -164,13 +164,13 @@ function buildRouterScript({
       values.sstpServer,
     )} port=${sstpPort} user=${routerQuote(values.sstpUser)} password=${routerQuote(
       values.sstpPassword,
-    )} authentication=mschap2 profile=default-encryption add-default-route=no verify-server-certificate=no disabled=no } on-error={ /interface sstp-client add name=${routerQuote(
+    )} authentication=mschap2 profile=default add-default-route=no verify-server-certificate=no disabled=no } on-error={ /interface sstp-client add name=${routerQuote(
       sstpName,
     )} connect-to=${routerQuote(sstpConnectToWithPort)} user=${routerQuote(
       values.sstpUser,
     )} password=${routerQuote(
       values.sstpPassword,
-    )} authentication=mschap2 profile=default-encryption add-default-route=no verify-server-certificate=no disabled=no }`,
+    )} authentication=mschap2 profile=default add-default-route=no verify-server-certificate=no disabled=no }`,
     `/ip dns set allow-remote-requests=yes query-server-timeout=1s query-total-timeout=2s cache-size=4096KiB`,
     `/ip dns static remove [find comment=${routerQuote("WPass captive")}]`,
     `/ip dns static remove [find comment=${routerQuote("WPass SaaS")}]`,
