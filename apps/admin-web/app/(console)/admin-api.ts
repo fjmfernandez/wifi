@@ -1,4 +1,10 @@
+import { demoAdminApi } from "./demo-api";
+
 export async function adminApi<T>(path: string, init?: RequestInit): Promise<T> {
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
+    return demoAdminApi<T>(path, init);
+  }
+
   const response = await fetch(path, {
     ...init,
     headers: {

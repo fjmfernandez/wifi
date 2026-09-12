@@ -48,6 +48,7 @@ const demoContext: CaptiveContext = {
     name: "Hotel Miramar",
     headline: "Bienvenido al WiFi",
     body: "Introduce tus datos para acceder a Internet.",
+    redirectUrl: "https://www.entelsat.com/",
     primaryColor: "#f1ba1b",
   },
 };
@@ -107,10 +108,10 @@ const copy: Record<"es" | "en", PortalCopy> = {
   },
 };
 
-export function CaptiveFlow() {
+export function CaptiveFlow({ forceDemo = false }: { forceDemo?: boolean }) {
   const searchParams = useSearchParams();
   const [language, setLanguage] = useState<"es" | "en">("es");
-  const [method, setMethod] = useState<LoginMethod>("click");
+  const [method, setMethod] = useState<LoginMethod>(forceDemo ? "email" : "click");
   const [context, setContext] = useState<CaptiveContext>();
   const [contextPending, setContextPending] = useState(true);
   const [contextError, setContextError] = useState<string>();
@@ -126,8 +127,9 @@ export function CaptiveFlow() {
     context?.legalVersions[0];
 
   useEffect(() => {
-    if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
+    if (forceDemo || process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
       setContext(demoContext);
+      setMethod("email");
       setContextPending(false);
       return;
     }
@@ -166,7 +168,7 @@ export function CaptiveFlow() {
       });
 
     return () => controller.abort();
-  }, [searchParams]);
+  }, [forceDemo, searchParams]);
 
   async function authorize(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -183,8 +185,31 @@ export function CaptiveFlow() {
     const values = new FormData(event.currentTarget);
     const state = searchParams.get("state") ?? "demo-state-with-more-than-thirty-two-characters";
 
-    if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
+    if (forceDemo || process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
       await new Promise((resolve) => window.setTimeout(resolve, 650));
+      const email = String(values.get("email") ?? "");
+      if (email) {
+        const demoContact = {
+          id: crypto.randomUUID(),
+          firstName: String(values.get("firstName") ?? ""),
+          lastName: String(values.get("lastName") ?? ""),
+          email,
+          marketingConsent: values.get("marketing") === "on" ? "granted" : "rejected",
+          consentAt: new Date().toISOString(),
+          visits: 1,
+          organizationName: "Demo WPass",
+          lastSiteName: demoContext.siteName,
+          lastSeenAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+        };
+        window.localStorage.setItem("wpass.demo.latestContact", JSON.stringify(demoContact));
+        document.cookie = `wpass_demo_latest_contact=${encodeURIComponent(
+          JSON.stringify(demoContact),
+        )}; Max-Age=86400; Path=/; Domain=.wpass.es; Secure; SameSite=Lax`;
+        document.cookie = `wpass_demo_latest_contact=${encodeURIComponent(
+          JSON.stringify(demoContact),
+        )}; Max-Age=86400; Path=/; SameSite=Lax`;
+      }
       setAuthorization({
         authorizationId: "0198be3c-70f4-7a10-9fc4-3f2f48a01002",
         username: "demo-authorization-user",
@@ -273,13 +298,21 @@ export function CaptiveFlow() {
             ? "Tu acceso se ha autorizado. Pulsa el botón para completar la conexión."
             : "Your access has been authorized. Tap the button to complete the connection."}
         </p>
-        {process.env.NEXT_PUBLIC_DEMO_MODE === "true" ? (
-          <button
-            onClick={() => setAuthorization(undefined)}
-            className="mt-7 h-12 w-full rounded-xl bg-hotel-600 px-5 text-sm font-bold text-white shadow-lg shadow-hotel-900/15 hover:bg-hotel-700"
-          >
-            {language === "es" ? "Ver demostración de nuevo" : "View demo again"}
-          </button>
+        {forceDemo || process.env.NEXT_PUBLIC_DEMO_MODE === "true" ? (
+          <div className="mt-7 grid gap-3">
+            <a
+              href={redirectUrl}
+              className="grid h-12 w-full place-items-center rounded-xl bg-hotel-600 px-5 text-sm font-bold text-white shadow-lg shadow-hotel-900/15 hover:bg-hotel-700"
+            >
+              {language === "es" ? "Simular Internet y redirigir" : "Simulate Internet access"}
+            </a>
+            <button
+              onClick={() => setAuthorization(undefined)}
+              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-5 text-sm font-bold text-slate-700 hover:bg-slate-50"
+            >
+              {language === "es" ? "Probar otra vez" : "Try again"}
+            </button>
+          </div>
         ) : (
           <form action={authorization.loginUrl} method="post" className="mt-7">
             <input type="hidden" name="username" value={authorization.username} />
