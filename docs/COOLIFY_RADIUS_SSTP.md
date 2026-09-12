@@ -48,7 +48,7 @@ SSTP_PORT=4443
 SSTP_LOCAL_IP=10.255.0.1
 SSTP_POOL=10.255.0.2-254
 SSTP_CLIENT_IP_RANGE=0.0.0.0/0
-SSTP_MPPE=prefer
+SSTP_MPPE=deny
 ```
 
 `SSTP_CLIENT_IP_RANGE=0.0.0.0/0` significa “aceptar routers desde cualquier IP pública”.
@@ -102,7 +102,7 @@ profile=default
 verify-server-certificate=no
 ```
 
-Usa `profile=default`, no `default-encryption`. SSTP ya cifra el túnel con TLS; forzar MPPE puede dejar algunos RouterBOARD en “authenticated” y cortar inmediatamente con `internal error (6)`.
+Usa `profile=default`, no `default-encryption`. SSTP ya cifra el túnel con TLS; forzar MPPE puede dejar algunos RouterBOARD en “authenticated/connected” y cortar inmediatamente. Para máxima estabilidad con MikroTik mAP/RouterOS 7, el servidor usa `SSTP_MPPE=deny`.
 
 Para producción estricta, sustituye el certificado autosignado por un certificado real y activa la verificación en RouterOS.
 

@@ -18,7 +18,7 @@ sstp_pool="${SSTP_POOL:-10.255.0.2-254}"
 sstp_client_ip_range="${SSTP_CLIENT_IP_RANGE:-0.0.0.0/0}"
 sstp_dns1="${SSTP_DNS1:-1.1.1.1}"
 sstp_dns2="${SSTP_DNS2:-8.8.8.8}"
-sstp_mppe="${SSTP_MPPE:-prefer}"
+sstp_mppe="${SSTP_MPPE:-deny}"
 radius_host="${RADIUS_HOST:-radius}"
 
 die() {
