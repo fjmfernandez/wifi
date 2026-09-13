@@ -5,6 +5,7 @@ services:
     build:
       context: .
       dockerfile: infra/docker/Dockerfile.admin
+      provenance: false
       args:
         SOURCE_COMMIT: ${SOURCE_COMMIT:-development}
         INTERNAL_API_URL: http://api:3001
@@ -27,6 +28,7 @@ services:
     build:
       context: .
       dockerfile: infra/docker/Dockerfile.captive
+      provenance: false
       args:
         SOURCE_COMMIT: ${SOURCE_COMMIT:-development}
         INTERNAL_API_URL: http://api:3001
@@ -51,6 +53,7 @@ services:
     build:
       context: .
       dockerfile: infra/docker/Dockerfile.api
+      provenance: false
     restart: unless-stopped
     environment:
       NODE_ENV: production
@@ -103,6 +106,7 @@ services:
     build:
       context: .
       dockerfile: infra/docker/Dockerfile.worker
+      provenance: false
     restart: unless-stopped
     environment:
       NODE_ENV: production
@@ -130,6 +134,7 @@ services:
     build:
       context: infra/freeradius
       dockerfile: Dockerfile
+      provenance: false
     restart: unless-stopped
     environment:
       RADIUS_DB_HOST: postgres
@@ -158,6 +163,7 @@ services:
     build:
       context: infra/sstp-vpn
       dockerfile: Dockerfile
+      provenance: false
     restart: unless-stopped
     environment:
       SSTP_PUBLIC_HOST: ${SSTP_PUBLIC_HOST:-62.84.190.174}
@@ -187,6 +193,7 @@ services:
     build:
       context: .
       dockerfile: infra/docker/Dockerfile.migrate
+      provenance: false
     restart: "no"
     # Coolify-specific: this one-shot container must not determine stack health.
     exclude_from_hc: true
