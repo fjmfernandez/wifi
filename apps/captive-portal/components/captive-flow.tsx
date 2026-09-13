@@ -36,7 +36,7 @@ type CaptiveContext = {
 };
 
 const demoContext: CaptiveContext = {
-  siteName: "Hotel Miramar",
+  siteName: "Entelsat",
   legalVersionId: "0198be3c-70f4-7a10-9fc4-3f2f48a01001",
   legalVersions: [
     { id: "0198be3c-70f4-7a10-9fc4-3f2f48a01001", locale: "es" },
@@ -45,8 +45,8 @@ const demoContext: CaptiveContext = {
   availableMethods: ["click", "email", "voucher"],
   languages: ["es", "en"],
   portal: {
-    name: "Hotel Miramar",
-    headline: "Bienvenido al WiFi",
+    name: "WPass",
+    headline: "Bienvenido al WiFi de Entelsat",
     body: "Introduce tus datos para acceder a Internet.",
     redirectUrl: "https://www.entelsat.com/",
     primaryColor: "#f1ba1b",
@@ -83,9 +83,10 @@ const copy: Record<"es" | "en", PortalCopy> = {
     emailLabel: "Tu correo electrónico",
     voucherLabel: "Código de acceso",
     pinLabel: "PIN de acceso",
-    terms: "Acepto las condiciones de uso",
-    privacy: "y he leído la política de privacidad.",
-    marketing: "Quiero recibir ofertas del hotel. Opcional.",
+    terms:
+      "Acepto las condiciones de uso, la política de privacidad y que el establecimiento pueda enviarme ofertas y comunicaciones comerciales.",
+    privacy: "Ver condiciones",
+    marketing: "",
     connect: "Conectarme a Internet",
     secure: "Conexión protegida · Servicio gestionado por WPass",
   },
@@ -100,9 +101,10 @@ const copy: Record<"es" | "en", PortalCopy> = {
     emailLabel: "Your email address",
     voucherLabel: "Access code",
     pinLabel: "Access PIN",
-    terms: "I accept the terms of use",
-    privacy: "and I have read the privacy policy.",
-    marketing: "I would like to receive hotel offers. Optional.",
+    terms:
+      "I accept the terms of use, the privacy policy and that the venue may send me offers and commercial communications.",
+    privacy: "View terms",
+    marketing: "",
     connect: "Connect to the Internet",
     secure: "Protected connection · Service managed by WPass",
   },
@@ -194,15 +196,15 @@ export function CaptiveFlow({ forceDemo = false }: { forceDemo?: boolean }) {
           firstName: String(values.get("firstName") ?? ""),
           lastName: String(values.get("lastName") ?? ""),
           email,
-          marketingConsent: values.get("marketing") === "on" ? "granted" : "rejected",
+          marketingConsent: "granted",
           consentAt: new Date().toISOString(),
           visits: 1,
-          organizationName: "Demo WPass",
+          organizationName: "Entelsat",
           lastSiteName: demoContext.siteName,
           lastSeenAt: new Date().toISOString(),
           createdAt: new Date().toISOString(),
         };
-        window.localStorage.setItem("wpass.demo.latestContact", JSON.stringify(demoContact));
+        window.localStorage.setItem("wpass.clean.latestContact", JSON.stringify(demoContact));
         document.cookie = `wpass_demo_latest_contact=${encodeURIComponent(
           JSON.stringify(demoContact),
         )}; Max-Age=86400; Path=/; Domain=.wpass.es; Secure; SameSite=Lax`;
@@ -237,7 +239,7 @@ export function CaptiveFlow({ forceDemo = false }: { forceDemo?: boolean }) {
       ...(method === "pin" ? { pin: String(values.get("pin") ?? "").toUpperCase() } : {}),
       acceptedLegalVersionId: selectedLegalVersion?.id,
       locale: language,
-      marketingConsent: values.get("marketing") === "on",
+      marketingConsent: method === "email",
     };
     const response = await fetch("/api/v1/captive/authorize", {
       method: "POST",
@@ -532,16 +534,6 @@ export function CaptiveFlow({ forceDemo = false }: { forceDemo?: boolean }) {
                 </a>
               </span>
             </label>
-            {method === "email" ? (
-              <label className="flex cursor-pointer items-start gap-3 border-t border-slate-100 pt-3 text-xs leading-5 text-slate-500">
-                <input
-                  name="marketing"
-                  type="checkbox"
-                  className="mt-0.5 size-4 shrink-0 accent-hotel-600"
-                />
-                <span>{t.marketing}</span>
-              </label>
-            ) : null}
           </div>
           {error ? (
             <p

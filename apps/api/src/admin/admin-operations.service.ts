@@ -9,6 +9,7 @@ import {
   openSecretText,
   sealSecret,
 } from "@wifi/security";
+import type { TenantTransaction } from "@wifi-entelsat/database";
 
 import type { AppEnvironment } from "../config/environment.js";
 import { DatabaseService } from "../infrastructure/database.service.js";
@@ -182,6 +183,118 @@ export class AdminOperationsService {
     );
   }
 
+  private async retireGateways(
+    transaction: TenantTransaction,
+    tenantId: string,
+    gatewayIds: string[],
+    now: Date,
+  ): Promise<void> {
+    if (gatewayIds.length === 0) return;
+
+    await transaction.radiusNasRegistry.updateMany({
+      where: { tenantId, gatewayId: { in: gatewayIds } },
+      data: { active: false },
+    });
+    await transaction.gatewayCaptiveLocator.updateMany({
+      where: { tenantId, gatewayId: { in: gatewayIds }, revokedAt: null },
+      data: { revokedAt: now },
+    });
+    await transaction.gatewaySecretVersion.updateMany({
+      where: { tenantId, gatewayId: { in: gatewayIds }, retiredAt: null },
+      data: { retiredAt: now },
+    });
+    await transaction.radiusRuntimeCredential.updateMany({
+      where: { tenantId, gatewayId: { in: gatewayIds }, revokedAt: null },
+      data: { enabled: false, revokedAt: now },
+    });
+    await transaction.accessAuthorization.updateMany({
+      where: {
+        tenantId,
+        gatewayId: { in: gatewayIds },
+        revokedAt: null,
+        status: { in: ["issued", "active"] },
+      },
+      data: { status: "revoked", revokedAt: now },
+    });
+    await transaction.radiusSession.updateMany({
+      where: { tenantId, gatewayId: { in: gatewayIds }, state: "active" },
+      data: { state: "stopped", stoppedAt: now, terminateCause: "gateway-retired" },
+    });
+    await transaction.gateway.updateMany({
+      where: { tenantId, id: { in: gatewayIds }, retiredAt: null },
+      data: { retiredAt: now, status: "retired" },
+    });
+  }
+
+  private async archiveSites(
+    transaction: TenantTransaction,
+    tenantId: string,
+    siteIds: string[],
+    now: Date,
+  ): Promise<void> {
+    if (siteIds.length === 0) return;
+
+    const zones = await transaction.zone.findMany({
+      where: { tenantId, siteId: { in: siteIds }, archivedAt: null },
+      select: { id: true },
+    });
+    const zoneIds = zones.map((zone) => zone.id);
+
+    const gateways = await transaction.gateway.findMany({
+      where: { tenantId, siteId: { in: siteIds }, retiredAt: null },
+      select: { id: true },
+    });
+    await this.retireGateways(
+      transaction,
+      tenantId,
+      gateways.map((gateway) => gateway.id),
+      now,
+    );
+
+    await transaction.portalPublication.updateMany({
+      where: {
+        tenantId,
+        siteId: { in: siteIds },
+        startsAt: { lte: now },
+        OR: [{ endsAt: null }, { endsAt: { gt: now } }],
+      },
+      data: { endsAt: now },
+    });
+    await transaction.loginMethod.updateMany({
+      where: { tenantId, siteId: { in: siteIds }, enabled: true },
+      data: { enabled: false },
+    });
+    await transaction.authorizedDevice.updateMany({
+      where: { tenantId, siteId: { in: siteIds }, revokedAt: null },
+      data: { revokedAt: now },
+    });
+    await transaction.policyAssignment.updateMany({
+      where: {
+        tenantId,
+        archivedAt: null,
+        OR: [
+          { siteId: { in: siteIds } },
+          ...(zoneIds.length > 0 ? [{ zoneId: { in: zoneIds } }] : []),
+        ],
+      },
+      data: { archivedAt: now },
+    });
+    if (zoneIds.length > 0) {
+      await transaction.ssid.updateMany({
+        where: { tenantId, zoneId: { in: zoneIds }, archivedAt: null },
+        data: { archivedAt: now },
+      });
+      await transaction.zone.updateMany({
+        where: { tenantId, id: { in: zoneIds }, archivedAt: null },
+        data: { archivedAt: now },
+      });
+    }
+    await transaction.site.updateMany({
+      where: { tenantId, id: { in: siteIds }, archivedAt: null },
+      data: { archivedAt: now, status: "archived" },
+    });
+  }
+
   async listOrganizations(tenantId: string): Promise<unknown[]> {
     return this.database.withTenant(tenantId, async (transaction) => {
       const organizations = await transaction.organization.findMany({
@@ -271,9 +384,30 @@ export class AdminOperationsService {
 
   async archiveOrganization(tenantId: string, organizationId: string): Promise<unknown> {
     return this.database.withTenant(tenantId, async (transaction) => {
+      const now = new Date();
+      const current = await transaction.organization.findFirst({
+        where: { tenantId, id: organizationId, archivedAt: null },
+        include: { sites: { where: { archivedAt: null }, select: { id: true } } },
+      });
+      if (!current) throw new NotFoundException("Organización no encontrada");
+
+      await this.archiveSites(
+        transaction,
+        tenantId,
+        current.sites.map((site) => site.id),
+        now,
+      );
+      await transaction.policyAssignment.updateMany({
+        where: { tenantId, organizationId, archivedAt: null },
+        data: { archivedAt: now },
+      });
+      await transaction.siteGroup.updateMany({
+        where: { tenantId, organizationId, archivedAt: null },
+        data: { archivedAt: now },
+      });
       const organization = await transaction.organization.update({
         where: { tenantId_id: { tenantId, id: organizationId } },
-        data: { archivedAt: new Date(), status: "archived" },
+        data: { archivedAt: now, status: "archived" },
       });
       return { id: organization.id, archived: true };
     });
@@ -387,10 +521,12 @@ export class AdminOperationsService {
 
   async archiveSite(tenantId: string, siteId: string): Promise<unknown> {
     return this.database.withTenant(tenantId, async (transaction) => {
-      const site = await transaction.site.update({
-        where: { tenantId_id: { tenantId, id: siteId } },
-        data: { archivedAt: new Date(), status: "archived" },
+      const site = await transaction.site.findFirst({
+        where: { tenantId, id: siteId, archivedAt: null },
+        select: { id: true },
       });
+      if (!site) throw new NotFoundException("Sede no encontrada");
+      await this.archiveSites(transaction, tenantId, [siteId], new Date());
       return { id: site.id, archived: true };
     });
   }
@@ -523,11 +659,8 @@ export class AdminOperationsService {
         select: { id: true },
       });
       if (!current) throw new NotFoundException("Gateway no encontrado");
-      const gateway = await transaction.gateway.update({
-        where: { tenantId_id: { tenantId, id: gatewayId } },
-        data: { retiredAt: new Date(), status: "retired" },
-      });
-      return { id: gateway.id, archived: true };
+      await this.retireGateways(transaction, tenantId, [gatewayId], new Date());
+      return { id: current.id, archived: true };
     });
   }
 
@@ -730,9 +863,30 @@ export class AdminOperationsService {
 
   async archivePolicy(tenantId: string, policyId: string): Promise<unknown> {
     return this.database.withTenant(tenantId, async (transaction) => {
+      const now = new Date();
+      const current = await transaction.accessPolicy.findFirst({
+        where: { tenantId, id: policyId, archivedAt: null },
+        include: { versions: { select: { id: true } } },
+      });
+      if (!current) throw new NotFoundException("Política no encontrada");
+      const versionIds = current.versions.map((version) => version.id);
+      if (versionIds.length > 0) {
+        await transaction.policyAssignment.updateMany({
+          where: { tenantId, policyVersionId: { in: versionIds }, archivedAt: null },
+          data: { archivedAt: now },
+        });
+        await transaction.loginMethod.updateMany({
+          where: { tenantId, policyVersionId: { in: versionIds }, enabled: true },
+          data: { enabled: false },
+        });
+        await transaction.accessPolicyVersion.updateMany({
+          where: { tenantId, id: { in: versionIds }, status: { not: "retired" } },
+          data: { status: "retired" },
+        });
+      }
       const policy = await transaction.accessPolicy.update({
         where: { tenantId_id: { tenantId, id: policyId } },
-        data: { archivedAt: new Date(), status: "archived" },
+        data: { archivedAt: now, status: "archived" },
       });
       return { id: policy.id, archived: true };
     });
@@ -1031,9 +1185,31 @@ export class AdminOperationsService {
 
   async archivePortal(tenantId: string, portalId: string): Promise<unknown> {
     return this.database.withTenant(tenantId, async (transaction) => {
+      const now = new Date();
+      const current = await transaction.portal.findFirst({
+        where: { tenantId, id: portalId, archivedAt: null },
+        include: { versions: { select: { id: true } } },
+      });
+      if (!current) throw new NotFoundException("Portal no encontrado");
+      const versionIds = current.versions.map((version) => version.id);
+      if (versionIds.length > 0) {
+        await transaction.portalPublication.updateMany({
+          where: {
+            tenantId,
+            portalVersionId: { in: versionIds },
+            startsAt: { lte: now },
+            OR: [{ endsAt: null }, { endsAt: { gt: now } }],
+          },
+          data: { endsAt: now },
+        });
+        await transaction.portalVersion.updateMany({
+          where: { tenantId, id: { in: versionIds }, status: { not: "retired" } },
+          data: { status: "retired" },
+        });
+      }
       const portal = await transaction.portal.update({
         where: { tenantId_id: { tenantId, id: portalId } },
-        data: { archivedAt: new Date() },
+        data: { archivedAt: now },
       });
       return { id: portal.id, archived: true };
     });
@@ -1058,7 +1234,7 @@ export class AdminOperationsService {
         include: {
           identifiers: { where: { kind: "email" }, take: 1 },
           consentEvents: {
-            where: { purpose: { code: "marketing" } },
+            where: { purpose: { code: { in: ["marketing", "marketing_email"] } } },
             orderBy: { occurredAt: "desc" },
             take: 1,
             include: { purpose: { select: { code: true, name: true } } },
@@ -1110,7 +1286,7 @@ export class AdminOperationsService {
   async listVoucherBatches(tenantId: string): Promise<unknown[]> {
     return this.database.withTenant(tenantId, async (transaction) => {
       const batches = await transaction.voucherBatch.findMany({
-        where: { tenantId },
+        where: { tenantId, vouchers: { some: { revokedAt: null } } },
         orderBy: { createdAt: "desc" },
         include: {
           site: { select: { name: true, code: true } },
@@ -1304,6 +1480,23 @@ export class AdminOperationsService {
         expiresAt: batch.expiresAt.toISOString(),
         createdAt: batch.createdAt.toISOString(),
       };
+    });
+  }
+
+  async archiveVoucherBatch(tenantId: string, batchId: string): Promise<unknown> {
+    return this.database.withTenant(tenantId, async (transaction) => {
+      const current = await transaction.voucherBatch.findFirst({
+        where: { tenantId, id: batchId, vouchers: { some: { revokedAt: null } } },
+        select: { id: true },
+      });
+      if (!current) throw new NotFoundException("Lote de vouchers no encontrado");
+
+      const now = new Date();
+      await transaction.voucher.updateMany({
+        where: { tenantId, batchId, revokedAt: null },
+        data: { state: "revoked", revokedAt: now },
+      });
+      return { id: current.id, archived: true };
     });
   }
 

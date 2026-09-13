@@ -11,12 +11,14 @@ import {
   Printer,
   QrCode,
   RefreshCcw,
+  Trash2,
 } from "lucide-react";
 import { toDataURL } from "qrcode";
 
 import { Badge, Button, Card } from "@wifi/ui";
 
 import { MetricCard } from "@/components/metric-card";
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { EditDialog } from "@/components/edit-dialog";
 import { PageHeader } from "@/components/page-header";
 import { TableFrame } from "@/components/table-frame";
@@ -127,9 +129,11 @@ export default function VouchersPage() {
   const [ticket, setTicket] = useState<VoucherTicket | null>(null);
   const [ticketQr, setTicketQr] = useState<string | null>(null);
   const [editingBatch, setEditingBatch] = useState<VoucherBatchView | null>(null);
+  const [deletingBatch, setDeletingBatch] = useState<VoucherBatchView | null>(null);
   const [ticketBatch, setTicketBatch] = useState<VoucherBatchTicketsView | null>(null);
   const [saving, setSaving] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [savingDelete, setSavingDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function refresh(): Promise<void> {
@@ -250,6 +254,20 @@ export default function VouchersPage() {
       if (first?.code) showTicket(loaded, first);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "No se pudieron cargar los QR");
+    }
+  }
+
+  async function archiveBatch(batch: VoucherBatchView): Promise<void> {
+    setSavingDelete(true);
+    setError(null);
+    try {
+      await adminApi(`/api/v1/admin/voucher-batches/${batch.id}`, { method: "DELETE" });
+      setDeletingBatch(null);
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudo eliminar el lote");
+    } finally {
+      setSavingDelete(false);
     }
   }
 
@@ -617,6 +635,9 @@ export default function VouchersPage() {
                     >
                       <Eye className="size-3.5" /> Ver QR
                     </Button>
+                    <Button variant="ghost" size="sm" onClick={() => setDeletingBatch(batch)}>
+                      <Trash2 className="size-3.5" /> Eliminar
+                    </Button>
                   </div>
                 </td>
               </tr>
@@ -689,6 +710,16 @@ export default function VouchersPage() {
           </form>
         ) : null}
       </EditDialog>
+
+      <DeleteConfirmDialog
+        open={deletingBatch !== null}
+        title="Eliminar lote de vouchers"
+        itemName={deletingBatch?.name ?? ""}
+        description="Retira el lote de la lista activa y revoca los códigos para que no se puedan usar."
+        saving={savingDelete}
+        onCancel={() => setDeletingBatch(null)}
+        onConfirm={() => (deletingBatch ? void archiveBatch(deletingBatch) : undefined)}
+      />
     </>
   );
 }

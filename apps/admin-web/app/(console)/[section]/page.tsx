@@ -5,7 +5,7 @@ import { Badge, Button } from "@wifi/ui";
 
 import { PageHeader } from "@/components/page-header";
 import { TableFrame } from "@/components/table-frame";
-import { consoleSections, type ConsoleSection } from "@/lib/console-data";
+import { consoleSections, type ConsoleSection, type ConsoleSectionData } from "@/lib/console-data";
 
 function isSection(value: string): value is ConsoleSection {
   return value in consoleSections;
@@ -40,7 +40,7 @@ export default async function GenericSectionPage({
 }) {
   const { section } = await params;
   if (!isSection(section)) notFound();
-  const data = consoleSections[section];
+  const data: ConsoleSectionData = consoleSections[section];
   return (
     <>
       <PageHeader
@@ -75,24 +75,36 @@ export default async function GenericSectionPage({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {data.rows.map((row, rowIndex) => (
-              <tr key={`${section}-${rowIndex}`} className="group hover:bg-slate-50/70">
-                {row.map((cell, cellIndex) => (
-                  <td
-                    key={`${cell}-${cellIndex}`}
-                    className={`px-5 py-4 text-xs ${cellIndex === 0 ? "font-bold text-slate-900" : "font-medium text-slate-600"}`}
-                  >
-                    {cellIndex === row.length - 1 ? (
-                      <Badge variant={statusVariant(cell)} dot>
-                        {cell}
-                      </Badge>
-                    ) : (
-                      cell
-                    )}
-                  </td>
-                ))}
+            {data.rows.length === 0 ? (
+              <tr>
+                <td colSpan={data.columns.length} className="px-5 py-12 text-center">
+                  <p className="text-sm font-bold text-slate-800">Sin datos demo</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    Esta sección está limpia. Los datos aparecerán aquí cuando existan registros
+                    reales o cuando se conecte una API específica.
+                  </p>
+                </td>
               </tr>
-            ))}
+            ) : (
+              data.rows.map((row, rowIndex) => (
+                <tr key={`${section}-${rowIndex}`} className="group hover:bg-slate-50/70">
+                  {row.map((cell, cellIndex) => (
+                    <td
+                      key={`${cell}-${cellIndex}`}
+                      className={`px-5 py-4 text-xs ${cellIndex === 0 ? "font-bold text-slate-900" : "font-medium text-slate-600"}`}
+                    >
+                      {cellIndex === row.length - 1 ? (
+                        <Badge variant={statusVariant(cell)} dot>
+                          {cell}
+                        </Badge>
+                      ) : (
+                        cell
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </TableFrame>

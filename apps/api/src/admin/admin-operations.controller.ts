@@ -383,4 +383,13 @@ export class AdminOperationsController {
       voucherBatchUpdateSchema.parse(body),
     );
   }
+
+  @Delete("voucher-batches/:id")
+  async archiveVoucherBatch(
+    @Req() request: FastifyRequest,
+    @Param("id") id: string,
+  ): Promise<unknown> {
+    const session = await this.sessions.requireSession(request, ["voucher.revoke"]);
+    return this.operations.archiveVoucherBatch(session.tenantId, idParamSchema.parse(id));
+  }
 }

@@ -21,8 +21,8 @@ const ids = {
 };
 
 const demoLegalContent = {
-  es: "La red se ofrece para proporcionar acceso a Internet durante la estancia. No se permite utilizarla para actividades ilícitas, interferir con otros usuarios o eludir las medidas de seguridad. Las comunicaciones comerciales son opcionales y requieren un consentimiento separado.",
-  en: "The network is provided for Internet access during the stay. It must not be used for unlawful activity, interference with other users, or circumvention of security controls. Marketing communications are optional and require separate consent.",
+  es: "La red se ofrece para proporcionar acceso a Internet durante la estancia. No se permite utilizarla para actividades ilícitas, interferir con otros usuarios o eludir las medidas de seguridad. Al aceptar estas condiciones, autorizas que el establecimiento pueda enviarte ofertas, ventajas y comunicaciones comerciales relacionadas con sus servicios.",
+  en: "The network is provided for Internet access during the stay. It must not be used for unlawful activity, interference with other users, or circumvention of security controls. By accepting these terms, you authorize the venue to send you offers, benefits and commercial communications related to its services.",
 } as const;
 
 @Injectable()
@@ -41,8 +41,8 @@ export class DemoCaptiveRepository implements CaptiveRepository {
       return undefined;
     return {
       ...ids,
-      siteName: "Hotel Miramar Málaga",
-      nasIdentifier: "nas-demo-miramar",
+      siteName: "Entelsat",
+      nasIdentifier: "gateway-casa",
       legalVersions: [
         { id: ids.legalVersionId, locale: "es" },
         { id: "0198be3c-70f4-7a10-9fc4-3f2f48a01005", locale: "en" },

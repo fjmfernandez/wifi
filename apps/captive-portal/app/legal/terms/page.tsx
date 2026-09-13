@@ -7,13 +7,13 @@ type TermsPageProps = {
 
 const demoDocument: CaptiveLegalDocument = {
   id: "0198be3c-70f4-7a10-9fc4-3f2f48a01001",
-  siteName: "Hotel Miramar",
-  title: "Condiciones de uso y privacidad (demostración)",
+  siteName: "WPass",
+  title: "Condiciones de uso y privacidad",
   kind: "terms",
   version: 1,
   locale: "es",
   content:
-    "Texto exclusivamente demostrativo. La versión contractual debe ser revisada y publicada por el responsable antes de habilitar un tenant en producción.",
+    "La red WiFi se ofrece para facilitar el acceso a Internet. Al aceptar estas condiciones autorizas el tratamiento de tus datos de acceso y contacto para prestar el servicio y para que el establecimiento pueda enviarte ofertas, ventajas y comunicaciones comerciales relacionadas con sus servicios. Puedes solicitar información, baja o ejercicio de derechos al responsable del establecimiento.",
   contentHash: "0".repeat(64),
   publishedAt: new Date(0).toISOString(),
 };

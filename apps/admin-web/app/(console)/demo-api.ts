@@ -37,7 +37,7 @@ function latestDemoContact(): JsonRecord | null {
   const cookieContact = cookieValue("wpass_demo_latest_contact");
   const raw =
     cookieContact ??
-    (typeof window !== "undefined" ? window.localStorage.getItem("wpass.demo.latestContact") : null);
+    (typeof window !== "undefined" ? window.localStorage.getItem("wpass.clean.latestContact") : null);
   if (!raw) return null;
   try {
     return JSON.parse(raw) as JsonRecord;
@@ -72,13 +72,13 @@ function id(prefix: string): string {
 }
 
 function organizations() {
-  return stored("wpass.demo.organizations", [
+  return stored("wpass.clean.organizations", [
     {
       id: ids.organization,
-      code: "DEMO",
-      name: "Demo WPass",
-      legalName: "Demo WPass S.L.",
-      accessEmail: "marketing@cliente-demo.es",
+      code: "ENTELSAT",
+      name: "Entelsat",
+      legalName: "Entelsat",
+      accessEmail: "entelsat@entelsat.com",
       status: "active",
       marketingAccessEnabled: true,
       sitesTotal: 1,
@@ -88,12 +88,12 @@ function organizations() {
 }
 
 function sites() {
-  return stored("wpass.demo.sites", [
+  return stored("wpass.clean.sites", [
     {
       id: ids.site,
       organizationId: ids.organization,
       code: "CASA",
-      name: "gatewaycasa",
+      name: "Entelsat",
       status: "active",
       timezone: "Europe/Madrid",
       countryCode: "ES",
@@ -105,13 +105,13 @@ function sites() {
 }
 
 function gateways() {
-  return stored("wpass.demo.gateways", [
+  return stored("wpass.clean.gateways", [
     {
       id: ids.gateway,
       siteId: ids.site,
-      siteName: "gatewaycasa",
+      siteName: "Entelsat",
       siteCode: "CASA",
-      name: "RouterBOARD Casa",
+      name: "gateway casa",
       model: "MikroTik RouterBOARD",
       serial: "DEMO-0001",
       nasIdentifier: "gatewaycasa",
@@ -124,7 +124,7 @@ function gateways() {
 }
 
 function policies() {
-  return stored("wpass.demo.policies", [
+  return stored("wpass.clean.policies", [
     {
       id: ids.policy,
       name: "WiFi invitados · 20 Mbps · 24h",
@@ -143,26 +143,26 @@ function policies() {
 }
 
 function portals() {
-  return stored("wpass.demo.portals", [
+  return stored("wpass.clean.portals", [
     {
       id: ids.portal,
-      name: "Portal Demo gatewaycasa",
+      name: "Portal Entelsat",
       kind: "wifi",
       versionId: ids.portalVersion,
       version: 1,
       status: "published",
       fallbackLocale: "es",
-      headline: "Bienvenido al WiFi de gatewaycasa",
+      headline: "Bienvenido al WiFi de Entelsat",
       body: "Regístrate con nombre, apellidos y email para acceder a Internet.",
       logoUrl: null,
       redirectUrl: "https://www.entelsat.com/",
       primaryColor: "#0d9488",
-      siteNames: ["gatewaycasa"],
+      siteNames: ["Entelsat"],
       publications: [
         {
           id: "demo-publication-gatewaycasa",
           siteId: ids.site,
-          siteName: "gatewaycasa",
+          siteName: "Entelsat",
           startsAt: now(),
           endsAt: null,
           active: true,
@@ -175,30 +175,15 @@ function portals() {
 
 function marketingContacts() {
   const latest = latestDemoContact();
-  return [
-    ...(latest ? [latest] : []),
-    {
-      id: "demo-contact-001",
-      firstName: "Claudia",
-      lastName: "Demo",
-      email: "claudia.demo@cliente.es",
-      marketingConsent: "granted",
-      consentAt: now(),
-      visits: 3,
-      organizationName: "Demo WPass",
-      lastSiteName: "gatewaycasa",
-      lastSeenAt: now(),
-      createdAt: now(),
-    },
-  ];
+  return latest ? [latest] : [];
 }
 
 function voucherBatches() {
-  return stored("wpass.demo.voucherBatches", [
+  return stored("wpass.clean.voucherBatches", [
     {
       id: "demo-voucher-batch",
-      name: "Recepción demo",
-      siteName: "gatewaycasa",
+      name: "Recepción",
+      siteName: "Entelsat",
       siteCode: "CASA",
       policyName: "WiFi invitados · 20 Mbps · 24h",
       policyLimits: "20 Mbps bajada · 5 Mbps subida · 24 h · sin cuota de MB",
@@ -254,7 +239,7 @@ export async function demoAdminApi<T>(path: string, init?: RequestInit): Promise
         },
         ...organizations(),
       ];
-      save("wpass.demo.organizations", next);
+      save("wpass.clean.organizations", next);
       return next[0] as T;
     }
     return organizations() as T;
@@ -263,10 +248,10 @@ export async function demoAdminApi<T>(path: string, init?: RequestInit): Promise
   if (/\/api\/v1\/admin\/organizations\/[^/]+$/.test(path)) {
     const itemId = path.split("/")[5] ?? "";
     if (method === "DELETE") {
-      deleteFromCollection("wpass.demo.organizations", organizations(), itemId);
+      deleteFromCollection("wpass.clean.organizations", organizations(), itemId);
       return { archived: true } as T;
     }
-    return updateCollection("wpass.demo.organizations", organizations(), itemId, {
+    return updateCollection("wpass.clean.organizations", organizations(), itemId, {
       code: text(payload.code).toUpperCase(),
       name: text(payload.name),
       legalName: text(payload.legalName) || null,
@@ -292,7 +277,7 @@ export async function demoAdminApi<T>(path: string, init?: RequestInit): Promise
         },
         ...sites(),
       ];
-      save("wpass.demo.sites", next);
+      save("wpass.clean.sites", next);
       return next[0] as T;
     }
     return sites() as T;
@@ -301,10 +286,10 @@ export async function demoAdminApi<T>(path: string, init?: RequestInit): Promise
   if (/\/api\/v1\/admin\/sites\/[^/]+$/.test(path)) {
     const itemId = path.split("/")[5] ?? "";
     if (method === "DELETE") {
-      deleteFromCollection("wpass.demo.sites", sites(), itemId);
+      deleteFromCollection("wpass.clean.sites", sites(), itemId);
       return { archived: true } as T;
     }
-    return updateCollection("wpass.demo.sites", sites(), itemId, {
+    return updateCollection("wpass.clean.sites", sites(), itemId, {
       code: text(payload.code).toUpperCase(),
       name: text(payload.name),
       countryCode: text(payload.countryCode, "ES").toUpperCase(),
@@ -332,7 +317,7 @@ export async function demoAdminApi<T>(path: string, init?: RequestInit): Promise
         },
         ...gateways(),
       ];
-      save("wpass.demo.gateways", next);
+      save("wpass.clean.gateways", next);
       return next[0] as T;
     }
     return gateways() as T;
@@ -341,11 +326,11 @@ export async function demoAdminApi<T>(path: string, init?: RequestInit): Promise
   if (/\/api\/v1\/admin\/gateways\/[^/]+$/.test(path)) {
     const itemId = path.split("/")[5] ?? "";
     if (method === "DELETE") {
-      deleteFromCollection("wpass.demo.gateways", gateways(), itemId);
+      deleteFromCollection("wpass.clean.gateways", gateways(), itemId);
       return { archived: true } as T;
     }
     const site = sites().find((item: JsonRecord) => item.id === payload.siteId) ?? sites()[0];
-    return updateCollection("wpass.demo.gateways", gateways(), itemId, {
+    return updateCollection("wpass.clean.gateways", gateways(), itemId, {
       siteId: String(site.id),
       siteName: String(site.name),
       siteCode: String(site.code),
@@ -376,7 +361,7 @@ export async function demoAdminApi<T>(path: string, init?: RequestInit): Promise
         },
         ...policies(),
       ];
-      save("wpass.demo.policies", next);
+      save("wpass.clean.policies", next);
       return next[0] as T;
     }
     return policies() as T;
@@ -385,10 +370,10 @@ export async function demoAdminApi<T>(path: string, init?: RequestInit): Promise
   if (/\/api\/v1\/admin\/policies\/[^/]+$/.test(path)) {
     const itemId = path.split("/")[5] ?? "";
     if (method === "DELETE") {
-      deleteFromCollection("wpass.demo.policies", policies(), itemId);
+      deleteFromCollection("wpass.clean.policies", policies(), itemId);
       return { archived: true } as T;
     }
-    return updateCollection("wpass.demo.policies", policies(), itemId, {
+    return updateCollection("wpass.clean.policies", policies(), itemId, {
       name: text(payload.name),
       downloadKbps: Number(payload.downloadKbps || 0) || null,
       uploadKbps: Number(payload.uploadKbps || 0) || null,
@@ -420,7 +405,7 @@ export async function demoAdminApi<T>(path: string, init?: RequestInit): Promise
         },
         ...portals(),
       ];
-      save("wpass.demo.portals", next);
+      save("wpass.clean.portals", next);
       return next[0] as T;
     }
     return portals() as T;
@@ -448,17 +433,17 @@ export async function demoAdminApi<T>(path: string, init?: RequestInit): Promise
           }
         : portal,
     );
-    save("wpass.demo.portals", next);
+    save("wpass.clean.portals", next);
     return { active: true, siteId: site.id, siteName: site.name } as T;
   }
 
   if (/\/api\/v1\/admin\/portals\/[^/]+$/.test(path)) {
     const itemId = path.split("/")[5] ?? "";
     if (method === "DELETE") {
-      deleteFromCollection("wpass.demo.portals", portals(), itemId);
+      deleteFromCollection("wpass.clean.portals", portals(), itemId);
       return { archived: true } as T;
     }
-    return updateCollection("wpass.demo.portals", portals(), itemId, {
+    return updateCollection("wpass.clean.portals", portals(), itemId, {
       name: text(payload.name),
       headline: text(payload.headline),
       body: text(payload.body),
@@ -470,6 +455,20 @@ export async function demoAdminApi<T>(path: string, init?: RequestInit): Promise
 
   if (path === "/api/v1/admin/marketing/contacts") return marketingContacts() as T;
   if (path === "/api/v1/admin/voucher-batches") return voucherBatches() as T;
+
+  if (/\/api\/v1\/admin\/voucher-batches\/[^/]+$/.test(path)) {
+    const itemId = path.split("/")[5] ?? "";
+    if (method === "DELETE") {
+      deleteFromCollection("wpass.clean.voucherBatches", voucherBatches(), itemId);
+      return { archived: true } as T;
+    }
+    return updateCollection("wpass.clean.voucherBatches", voucherBatches(), itemId, {
+      name: text(payload.name),
+      expiresAt: text(payload.expiresAt),
+      defaultMaxUses: Number(payload.defaultMaxUses || 1),
+      defaultMaxDevices: Number(payload.defaultMaxDevices || 1),
+    }) as T;
+  }
 
   if (/\/api\/v1\/admin\/voucher-batches\/[^/]+\/tickets$/.test(path)) {
     const batch = voucherBatches()[0] as JsonRecord;

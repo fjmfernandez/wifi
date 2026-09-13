@@ -423,9 +423,9 @@ export class PrismaCaptiveRepository implements CaptiveRepository {
         },
       });
 
-      if (endUserId && request.marketingConsent !== undefined) {
+      if (endUserId) {
         const purpose = await transaction.processingPurpose.findFirst({
-          where: { tenantId: route.tenantId, code: "marketing" },
+          where: { tenantId: route.tenantId, code: { in: ["marketing", "marketing_email"] } },
           select: { id: true },
         });
         if (purpose) {
@@ -435,8 +435,12 @@ export class PrismaCaptiveRepository implements CaptiveRepository {
               endUserId,
               purposeId: purpose.id,
               legalVersionId: legal.id,
-              decision: request.marketingConsent ? "granted" : "rejected",
-              evidence: { authorizationId, source: "captive_portal" },
+              decision: request.marketingConsent === false ? "rejected" : "granted",
+              evidence: {
+                authorizationId,
+                source: "captive_terms",
+                bundledWithTerms: request.marketingConsent !== false,
+              },
             },
           });
         }
@@ -447,7 +451,7 @@ export class PrismaCaptiveRepository implements CaptiveRepository {
           where: { id: voucher.id },
           data: {
             usedCount: nextUsedCount,
-            ...(nextUsedCount >= voucher.max_uses ? { state: "consumed" } : {}),
+            ...(nextUsedCount >= voucher.max_uses ? { state: "exhausted" } : {}),
           },
         });
         await transaction.voucherRedemption.create({

@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { Badge, Brand, cn } from "@wifi/ui";
 
@@ -43,6 +43,7 @@ const primaryNavigation: NavigationItem[] = [
 ];
 
 const operationsNavigation: NavigationItem[] = [
+  { href: "/clientes", label: "Panel hoteles", icon: LayoutDashboard },
   { href: "/usuarios", label: "Usuarios", icon: UsersRound },
   { href: "/marketing", label: "Marketing", icon: Megaphone },
   { href: "/sesiones", label: "Sesiones", icon: Activity },
@@ -109,7 +110,31 @@ function NavGroup({
   );
 }
 
+type SessionView = {
+  tenantName?: string;
+};
+
 function Sidebar({ close }: { close: () => void }) {
+  const [session, setSession] = useState<SessionView>();
+
+  useEffect(() => {
+    let alive = true;
+    void fetch("/api/v1/auth/admin/session", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) return undefined;
+        return (await response.json()) as SessionView;
+      })
+      .then((nextSession) => {
+        if (alive && nextSession) setSession(nextSession);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const tenantName = session?.tenantName?.trim() || "WPass";
+
   return (
     <aside className="flex h-full w-[272px] flex-col border-r border-white/5 bg-[#07172f] px-4 py-5 text-white">
       <div className="flex items-center justify-between px-2">
@@ -125,13 +150,13 @@ function Sidebar({ close }: { close: () => void }) {
       <div className="mt-7 rounded-xl border border-white/8 bg-white/[0.04] p-3">
         <div className="flex items-center gap-2.5">
           <span className="grid size-8 place-items-center rounded-lg bg-brand-500/15 text-xs font-extrabold text-brand-200">
-            GH
+            WP
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-xs font-bold text-slate-100">
-              Gran Hotel Miramar
+              {tenantName}
             </span>
-            <span className="mt-0.5 block text-[10px] text-slate-500">Tenant · Producción</span>
+            <span className="mt-0.5 block text-[10px] text-slate-500">Producción limpia</span>
           </span>
           <ChevronDown className="size-3.5 text-slate-500" />
         </div>
@@ -144,10 +169,10 @@ function Sidebar({ close }: { close: () => void }) {
       <div className="mt-4 border-t border-white/8 pt-4">
         <div className="flex items-center gap-3 rounded-xl px-2 py-2">
           <span className="grid size-9 place-items-center rounded-full bg-gradient-to-br from-brand-400 to-cyan-400 text-xs font-extrabold">
-            FM
+            EN
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-xs font-bold">Francisco M.</span>
+            <span className="block truncate text-xs font-bold">entelsat@entelsat.com</span>
             <span className="block truncate text-[10px] text-slate-500">Administrador</span>
           </span>
           <LogOut className="size-4 text-slate-500" />
@@ -211,7 +236,7 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
             </button>
             <button className="flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 sm:px-3">
               <CircleUserRound className="size-4 text-slate-400" />
-              <span className="hidden sm:inline">Francisco</span>
+              <span className="hidden sm:inline">Entelsat</span>
               <ChevronDown className="size-3" />
             </button>
           </div>
