@@ -23,7 +23,7 @@ RADIUS_CLIENTS_TSV=rb-prueba-001	10.255.0.2	xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 SSTP_USERS_TSV=rb-prueba-001	clave-larga-sstp	10.255.0.2
 ```
 
-Si Coolify no conserva el tabulador al pegar, puedes escribir `\t` literalmente entre campos. El contenedor lo convertirá a tab real al arrancar.
+En Coolify, activa **Is Multiline**, muestra el editor y pega una línea por router con tabuladores reales. El contenedor también normaliza separadores `\t`/`\n`, separadores doblemente escapados por Compose y finales de línea de Windows. Nunca pegues comillas exteriores alrededor del valor.
 
 Si hay varios routers, usa una línea por router:
 
@@ -35,6 +35,8 @@ rb-hotel-002	clave-larga-2	10.255.0.3
 ```
 
 Después redepliega en Coolify.
+
+Cada router físico necesita un usuario SSTP y una IP de túnel exclusivos. No copies el mismo usuario a dos routers: con `single-session=replace`, cada nueva conexión expulsa la anterior y ambos entran en un bucle de reconexión. Si el registro alterna dos IP públicas autenticando el mismo usuario, corrige las identidades antes de cambiar TLS, MTU o MPPE.
 
 ## 2. Servidor SSTP
 
@@ -102,7 +104,7 @@ profile=default
 verify-server-certificate=no
 ```
 
-Usa `profile=default`, no `default-encryption`. SSTP ya cifra el túnel con TLS; forzar MPPE puede dejar algunos RouterBOARD en “authenticated/connected” y cortar inmediatamente. Para máxima estabilidad con MikroTik mAP/RouterOS 7, el servidor usa `SSTP_MPPE=deny`.
+Usa `profile=default`. SSTP cifra el túnel con TLS y el valor predeterminado del servidor es `SSTP_MPPE=deny`. Comprueba el valor efectivo si Coolify conserva una variable anterior. Un estado `connected` de pocos segundos no demuestra un problema MPPE: revisa primero sesiones duplicadas y el motivo de terminación en ambos extremos.
 
 Para producción estricta, sustituye el certificado autosignado por un certificado real y activa la verificación en RouterOS.
 

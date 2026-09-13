@@ -47,6 +47,19 @@ validate_identifier() {
   esac
 }
 
+normalize_users_tsv() {
+  # Coolify/Compose may preserve escaped separators with one or two backslashes.
+  # Decode separators only, never arbitrary printf escapes in credentials.
+  printf '%s\n' "$1" | awk '
+    {
+      gsub(/\r/, "")
+      gsub(/\\+t/, "\t")
+      gsub(/\\+n/, "\n")
+      print
+    }
+  '
+}
+
 render_client_ip_ranges() {
   ranges="$1"
   case "$ranges" in
@@ -118,7 +131,7 @@ chmod 0600 "$cert_file" "$key_file"
 
 users_source="$runtime_dir/users.tsv"
 if [ -n "${SSTP_USERS_TSV:-}" ]; then
-  printf '%b\n' "$SSTP_USERS_TSV" > "$users_source"
+  normalize_users_tsv "$SSTP_USERS_TSV" > "$users_source"
 else
   generated_user="disabled-$(openssl rand -hex 6)"
   generated_password="$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=')"
