@@ -37,7 +37,9 @@ function latestDemoContact(): JsonRecord | null {
   const cookieContact = cookieValue("wpass_demo_latest_contact");
   const raw =
     cookieContact ??
-    (typeof window !== "undefined" ? window.localStorage.getItem("wpass.clean.latestContact") : null);
+    (typeof window !== "undefined"
+      ? window.localStorage.getItem("wpass.clean.latestContact")
+      : null);
   if (!raw) return null;
   try {
     return JSON.parse(raw) as JsonRecord;
@@ -211,7 +213,11 @@ function updateCollection<T extends JsonRecord>(
   return (next.find((item) => item.id === itemId) ?? next[0]) as T;
 }
 
-function deleteFromCollection<T extends JsonRecord>(key: string, fallback: T[], itemId: string): void {
+function deleteFromCollection<T extends JsonRecord>(
+  key: string,
+  fallback: T[],
+  itemId: string,
+): void {
   save(
     key,
     fallback.filter((item) => item.id !== itemId),
@@ -453,7 +459,15 @@ export async function demoAdminApi<T>(path: string, init?: RequestInit): Promise
     }) as T;
   }
 
-  if (path === "/api/v1/admin/marketing/contacts") return marketingContacts() as T;
+  if (path === "/api/v1/admin/marketing/contacts") {
+    if (method === "DELETE") {
+      const ids = Array.isArray(payload.ids) ? payload.ids.map(String) : [];
+      const next = marketingContacts().filter((contact) => !ids.includes(String(contact.id)));
+      save("wpass.clean.marketingContacts", next);
+      return { anonymized: ids.length } as T;
+    }
+    return marketingContacts() as T;
+  }
   if (path === "/api/v1/admin/voucher-batches") return voucherBatches() as T;
 
   if (/\/api\/v1\/admin\/voucher-batches\/[^/]+$/.test(path)) {

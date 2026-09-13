@@ -16,8 +16,21 @@ export async function adminApi<T>(path: string, init?: RequestInit): Promise<T> 
     const text = await response.text();
     let parsedMessage: string | undefined;
     try {
-      const problem = JSON.parse(text) as { detail?: string; message?: string };
-      parsedMessage = problem.detail ?? problem.message;
+      const problem = JSON.parse(text) as {
+        detail?: string;
+        instance?: string;
+        message?: string;
+        status?: number;
+        title?: string;
+      };
+      parsedMessage =
+        problem.detail ??
+        problem.message ??
+        (problem.title
+          ? `${problem.title}${problem.status ? ` (${problem.status})` : ""}${
+              problem.instance ? ` en ${problem.instance}` : ""
+            }`
+          : undefined);
     } catch {
       parsedMessage = undefined;
     }

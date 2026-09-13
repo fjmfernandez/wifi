@@ -124,6 +124,9 @@ const voucherBatchUpdateSchema = voucherBatchInputSchema
     defaultMaxDevices: true,
   })
   .partial();
+const marketingContactsDeleteSchema = z.object({
+  ids: z.array(uuidLikeSchema).min(1).max(500),
+});
 
 @Controller("admin")
 export class AdminOperationsController {
@@ -341,6 +344,18 @@ export class AdminOperationsController {
   async listMarketingContacts(@Req() request: FastifyRequest): Promise<unknown[]> {
     const session = await this.sessions.requireSession(request, ["consent.read"]);
     return this.operations.listMarketingContacts(session.tenantId);
+  }
+
+  @Delete("marketing/contacts")
+  async deleteMarketingContacts(
+    @Req() request: FastifyRequest,
+    @Body() body: unknown,
+  ): Promise<unknown> {
+    const session = await this.sessions.requireSession(request, ["dsr.execute"]);
+    return this.operations.deleteMarketingContacts(
+      session.tenantId,
+      marketingContactsDeleteSchema.parse(body),
+    );
   }
 
   @Get("voucher-batches")

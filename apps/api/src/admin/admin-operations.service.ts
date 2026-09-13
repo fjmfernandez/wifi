@@ -125,6 +125,10 @@ export interface CreateGatewayLinkInput {
   hotspotDnsName: string;
 }
 
+export interface DeleteMarketingContactsInput {
+  ids: string[];
+}
+
 function isUniqueConstraintError(error: unknown): boolean {
   return (
     typeof error === "object" &&
@@ -1280,6 +1284,63 @@ export class AdminOperationsService {
           createdAt: user.createdAt.toISOString(),
         };
       });
+    });
+  }
+
+  async deleteMarketingContacts(
+    tenantId: string,
+    input: DeleteMarketingContactsInput,
+  ): Promise<unknown> {
+    return this.database.withTenant(tenantId, async (transaction) => {
+      const now = new Date();
+      const uniqueIds = [...new Set(input.ids)];
+      if (uniqueIds.length === 0) return { anonymized: 0 };
+
+      const users = await transaction.endUser.findMany({
+        where: { tenantId, id: { in: uniqueIds }, anonymizedAt: null },
+        select: { id: true },
+      });
+      const userIds = users.map((user) => user.id);
+      if (userIds.length === 0) return { anonymized: 0 };
+
+      const marketingPurposes = await transaction.processingPurpose.findMany({
+        where: { tenantId, code: { in: ["marketing", "marketing_email"] }, active: true },
+        select: { id: true },
+      });
+
+      if (marketingPurposes.length > 0) {
+        await transaction.consentEvent.createMany({
+          data: userIds.flatMap((endUserId) =>
+            marketingPurposes.map((purpose) => ({
+              tenantId,
+              endUserId,
+              purposeId: purpose.id,
+              decision: "withdrawn",
+              evidence: {
+                source: "admin_marketing_delete",
+                reason: "contact_removed_from_marketing_panel",
+              },
+              occurredAt: now,
+            })),
+          ),
+        });
+      }
+
+      await transaction.endUserIdentifier.deleteMany({
+        where: { tenantId, endUserId: { in: userIds }, kind: "email" },
+      });
+      await transaction.endUser.updateMany({
+        where: { tenantId, id: { in: userIds }, anonymizedAt: null },
+        data: {
+          status: "anonymized",
+          profileCiphertext: null,
+          profileKeyVersion: null,
+          anonymizedAt: now,
+          retentionAnchor: now,
+        },
+      });
+
+      return { anonymized: userIds.length };
     });
   }
 
