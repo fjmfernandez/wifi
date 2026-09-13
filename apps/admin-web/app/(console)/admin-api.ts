@@ -5,12 +5,14 @@ export async function adminApi<T>(path: string, init?: RequestInit): Promise<T> 
     return demoAdminApi<T>(path, init);
   }
 
+  const headers = new Headers(init?.headers);
+  if (init?.body && !headers.has("content-type")) {
+    headers.set("content-type", "application/json");
+  }
+
   const response = await fetch(path, {
     ...init,
-    headers: {
-      "content-type": "application/json",
-      ...init?.headers,
-    },
+    headers,
   });
   if (!response.ok) {
     const text = await response.text();
