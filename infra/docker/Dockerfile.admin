@@ -14,7 +14,9 @@ ARG SOURCE_COMMIT=development
 # so the API origin has to be known here. Supplying it only as a runtime environment variable
 # leaves the default http://localhost:3001 baked in and every proxied /api/v1 call returns 500.
 ARG INTERNAL_API_URL=http://api:3001
+ARG NEXT_PUBLIC_ADMIN_GOOGLE_LOGIN_ENABLED=false
 ENV INTERNAL_API_URL=$INTERNAL_API_URL
+ENV NEXT_PUBLIC_ADMIN_GOOGLE_LOGIN_ENABLED=$NEXT_PUBLIC_ADMIN_GOOGLE_LOGIN_ENABLED
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV BUILD_SHA=$SOURCE_COMMIT
 COPY . .
@@ -23,6 +25,7 @@ RUN pnpm --filter @wifi/admin-web build
 FROM node:24.15.0-bookworm-slim AS runtime
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV NEXT_PUBLIC_ADMIN_GOOGLE_LOGIN_ENABLED=false
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 WORKDIR /app

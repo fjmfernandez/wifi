@@ -29,7 +29,13 @@ const environmentSchema = z.object({
   CAPTIVE_PUBLIC_ORIGIN: z.url().default("http://localhost:3002"),
   CAPTIVE_STATE_HMAC_KEY_BASE64: base64UrlKey,
   CAPTIVE_IDENTIFIER_HMAC_KEY_BASE64: base64UrlKey,
+  CAPTIVE_GOOGLE_LOGIN_ENABLED: booleanString.default(false),
+  GOOGLE_OAUTH_CLIENT_ID: optional(z.string().min(20).max(512)),
+  GOOGLE_OAUTH_CLIENT_SECRET: optional(z.string().min(8).max(512)),
+  GOOGLE_OAUTH_REDIRECT_URI: optional(z.url()),
   ADMIN_PUBLIC_ORIGIN: z.url().default("http://localhost:3000"),
+  ADMIN_GOOGLE_LOGIN_ENABLED: booleanString.default(false),
+  ADMIN_GOOGLE_ALLOWED_EMAILS: z.string().default(""),
   ADMIN_EMAIL_HMAC_KEY_BASE64: base64UrlKey,
   ADMIN_SESSION_HMAC_KEY_BASE64: base64UrlKey,
   DATA_ENCRYPTION_MASTER_KEY_BASE64: base64UrlKey,
@@ -76,6 +82,32 @@ export function parseEnvironment(input: Record<string, unknown>): AppEnvironment
   }
   if (parsed.NODE_ENV === "production" && parsed.DEMO_MODE) {
     throw new Error("DEMO_MODE no puede activarse en producción");
+  }
+  if (parsed.CAPTIVE_GOOGLE_LOGIN_ENABLED) {
+    if (!parsed.GOOGLE_OAUTH_CLIENT_ID || !parsed.GOOGLE_OAUTH_CLIENT_SECRET) {
+      throw new Error(
+        "GOOGLE_OAUTH_CLIENT_ID y GOOGLE_OAUTH_CLIENT_SECRET son obligatorias cuando Google Login está activado",
+      );
+    }
+    const redirectUri =
+      parsed.GOOGLE_OAUTH_REDIRECT_URI ??
+      new URL("/api/v1/captive/oauth/google/callback", parsed.CAPTIVE_PUBLIC_ORIGIN).toString();
+    if (new URL(redirectUri).origin !== new URL(parsed.CAPTIVE_PUBLIC_ORIGIN).origin) {
+      throw new Error("GOOGLE_OAUTH_REDIRECT_URI debe pertenecer al origen cautivo configurado");
+    }
+  }
+  if (parsed.ADMIN_GOOGLE_LOGIN_ENABLED) {
+    if (!parsed.GOOGLE_OAUTH_CLIENT_ID || !parsed.GOOGLE_OAUTH_CLIENT_SECRET) {
+      throw new Error(
+        "GOOGLE_OAUTH_CLIENT_ID y GOOGLE_OAUTH_CLIENT_SECRET son obligatorias cuando Google Admin Login está activado",
+      );
+    }
+    const allowedEmails = parsed.ADMIN_GOOGLE_ALLOWED_EMAILS.split(",")
+      .map((email) => email.trim().toLowerCase())
+      .filter(Boolean);
+    if (parsed.NODE_ENV === "production" && allowedEmails.length === 0) {
+      throw new Error("ADMIN_GOOGLE_ALLOWED_EMAILS debe listar emails autorizados en producción");
+    }
   }
 
   const keys = [

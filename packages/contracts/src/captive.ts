@@ -114,3 +114,10 @@ export const captiveAuthorizationResultSchema = z.object({
   expiresAt: isoDateTimeSchema,
 });
 export type CaptiveAuthorizationResult = z.infer<typeof captiveAuthorizationResultSchema>;
+
+export const captiveGoogleOAuthStartSchema = z.object({
+  state: z.string().min(32).max(2048),
+  acceptedLegalVersionId: idSchema,
+  locale: localeSchema.default("es"),
+});
+export type CaptiveGoogleOAuthStart = z.infer<typeof captiveGoogleOAuthStartSchema>;

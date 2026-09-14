@@ -25,7 +25,7 @@ export const adminSessionViewSchema = z.object({
   tenantId: idSchema,
   tenantName: z.string().min(1).max(160),
   membershipId: idSchema,
-  authStrength: z.enum(["password", "totp", "webauthn", "recovery_code"]),
+  authStrength: z.enum(["password", "totp", "webauthn", "recovery_code", "google_oauth"]),
   permissions: z.array(z.string().min(1).max(120)),
   expiresAt: isoDateTimeSchema,
 });

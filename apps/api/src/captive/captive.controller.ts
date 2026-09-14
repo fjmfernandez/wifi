@@ -46,4 +46,31 @@ export class CaptiveController {
   authorize(@Body() body: unknown): Promise<unknown> {
     return this.captive.authorize(body);
   }
+
+  @Get("oauth/google/start")
+  async googleOAuthStart(
+    @Query("state") state: unknown,
+    @Query("acceptedLegalVersionId") acceptedLegalVersionId: unknown,
+    @Query("locale") locale: unknown,
+    @Res() response: FastifyReply,
+  ): Promise<void> {
+    const location = await this.captive.googleOAuthStart({
+      state,
+      acceptedLegalVersionId,
+      locale,
+    });
+    await response.status(303).header("location", location).send();
+  }
+
+  @Get("oauth/google/callback")
+  @Header("Cache-Control", "no-store")
+  async googleOAuthCallback(
+    @Query("state") state: unknown,
+    @Query("code") code: unknown,
+    @Query("error") error: unknown,
+    @Res() response: FastifyReply,
+  ): Promise<void> {
+    const html = await this.captive.googleOAuthCallback({ state, code, error });
+    await response.type("text/html; charset=utf-8").send(html);
+  }
 }

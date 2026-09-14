@@ -4,6 +4,7 @@ import {
   Get,
   Header,
   Post,
+  Query,
   Req,
   Res,
   UnauthorizedException,
@@ -77,6 +78,38 @@ export class AdminAuthController {
     if (token) await this.auth.logout(token).catch(() => undefined);
     response.header("set-cookie", this.expiredSessionCookie());
     await response.status(204).send();
+  }
+
+  @Get("oauth/google/start")
+  async googleOAuthStart(
+    @Query("returnTo") returnTo: unknown,
+    @Res() response: FastifyReply,
+  ): Promise<void> {
+    const location = this.auth.googleOAuthStart(returnTo);
+    await response.status(303).header("location", location).send();
+  }
+
+  @Get("oauth/google/callback")
+  @Header("Cache-Control", "no-store")
+  async googleOAuthCallback(
+    @Query("state") state: unknown,
+    @Query("code") code: unknown,
+    @Query("error") error: unknown,
+    @Req() request: FastifyRequest,
+    @Res() response: FastifyReply,
+  ): Promise<void> {
+    const outcome = await this.auth.googleOAuthCallback(
+      { state, code, error },
+      {
+        ip: request.ip,
+        ...(typeof request.headers["user-agent"] === "string"
+          ? { userAgent: request.headers["user-agent"] }
+          : {}),
+      },
+    );
+    if (!outcome.sessionToken) throw new Error("SESSION_TOKEN_MISSING");
+    response.header("set-cookie", this.sessionCookie(outcome.sessionToken, outcome.maxAgeSeconds));
+    await response.status(303).header("location", `${this.adminOrigin}${outcome.returnTo}`).send();
   }
 
   private requiredSessionToken(request: FastifyRequest): string {

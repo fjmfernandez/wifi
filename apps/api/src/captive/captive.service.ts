@@ -8,6 +8,7 @@ import {
 import { ConfigService } from "@nestjs/config";
 import {
   captiveAuthorizeSchema,
+  captiveGoogleOAuthStartSchema,
   captiveLegalDocumentSchema,
   captiveStartSchema,
   idSchema,
@@ -36,6 +37,7 @@ export interface CaptivePublicContext {
   legalVersions: CaptiveGatewayContext["legalVersions"];
   availableMethods: CaptiveGatewayContext["availableMethods"];
   languages: readonly ("es" | "en")[];
+  googleOAuthEnabled: boolean;
   portal?: CaptiveGatewayContext["portal"];
 }
 
@@ -46,9 +48,50 @@ export interface CaptiveGatewayPingResult {
   seenAt: string;
 }
 
+interface GoogleOAuthState {
+  captiveState: string;
+  acceptedLegalVersionId: string;
+  locale: "es" | "en";
+  expiresAt: number;
+}
+
+interface GoogleTokenResponse {
+  access_token?: string;
+  id_token?: string;
+  token_type?: string;
+  expires_in?: number;
+  error?: string;
+  error_description?: string;
+}
+
+interface GoogleUserInfo {
+  sub?: string;
+  email?: string;
+  email_verified?: boolean;
+  given_name?: string;
+  family_name?: string;
+  name?: string;
+}
+
 function normalizedOrigin(value: string): string {
   const url = new URL(value);
   return url.origin.toLowerCase();
+}
+
+function encodeJson(value: unknown): string {
+  return Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
+}
+
+function decodeJson<T>(value: string): T {
+  return JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as T;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
 }
 
 @Injectable()
@@ -56,6 +99,10 @@ export class CaptiveService {
   private readonly stateKey: Buffer;
   private readonly identifierKey: Buffer;
   private readonly portalOrigin: string;
+  private readonly googleOAuthEnabled: boolean;
+  private readonly googleOAuthClientId?: string;
+  private readonly googleOAuthClientSecret?: string;
+  private readonly googleOAuthRedirectUri: string;
 
   constructor(
     @Inject(CAPTIVE_REPOSITORY) private readonly repository: CaptiveRepository,
@@ -70,6 +117,12 @@ export class CaptiveService {
       "base64url",
     );
     this.portalOrigin = config.getOrThrow<string>("CAPTIVE_PUBLIC_ORIGIN");
+    this.googleOAuthEnabled = config.get("CAPTIVE_GOOGLE_LOGIN_ENABLED", { infer: true });
+    this.googleOAuthClientId = config.get("GOOGLE_OAUTH_CLIENT_ID", { infer: true });
+    this.googleOAuthClientSecret = config.get("GOOGLE_OAUTH_CLIENT_SECRET", { infer: true });
+    this.googleOAuthRedirectUri =
+      config.get("GOOGLE_OAUTH_REDIRECT_URI", { infer: true }) ??
+      new URL("/api/v1/captive/oauth/google/callback", this.portalOrigin).toString();
     if (repository instanceof DemoCaptiveRepository) {
       repository.configure(
         keyedDigest("demo-gateway-locator-2026", this.identifierKey, "captive.gateway-locator.v1"),
@@ -142,8 +195,84 @@ export class CaptiveService {
       legalVersions: attempt.gateway.legalVersions,
       availableMethods: attempt.gateway.availableMethods,
       languages: attempt.gateway.legalVersions.map((version) => version.locale),
+      googleOAuthEnabled:
+        this.googleOAuthEnabled && attempt.gateway.availableMethods.includes("email"),
       ...(attempt.gateway.portal ? { portal: attempt.gateway.portal } : {}),
     };
+  }
+
+  async googleOAuthStart(rawRequest: unknown): Promise<string> {
+    if (!this.googleOAuthEnabled || !this.googleOAuthClientId || !this.googleOAuthClientSecret) {
+      throw new NotFoundException("Google Login no está configurado");
+    }
+    const request = captiveGoogleOAuthStartSchema.parse(rawRequest);
+    const attempt = await this.repository.getAttempt(
+      keyedDigest(request.state, this.stateKey, "captive.state.v1"),
+    );
+    if (!attempt) throw new UnauthorizedException("La sesión cautiva ha caducado");
+    if (!attempt.gateway.availableMethods.includes("email")) {
+      throw new BadRequestException("Google requiere que el acceso por email esté activo");
+    }
+    if (
+      !attempt.gateway.legalVersions.some(
+        (version) =>
+          version.id === request.acceptedLegalVersionId && version.locale === request.locale,
+      )
+    ) {
+      throw new BadRequestException("La versión legal aceptada no es la vigente");
+    }
+    const state = this.signGoogleOAuthState({
+      captiveState: request.state,
+      acceptedLegalVersionId: request.acceptedLegalVersionId,
+      locale: request.locale,
+      expiresAt: Date.now() + 5 * 60_000,
+    });
+    const authorizationUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+    authorizationUrl.searchParams.set("client_id", this.googleOAuthClientId);
+    authorizationUrl.searchParams.set("redirect_uri", this.googleOAuthRedirectUri);
+    authorizationUrl.searchParams.set("response_type", "code");
+    authorizationUrl.searchParams.set("scope", "openid email profile");
+    authorizationUrl.searchParams.set("state", state);
+    authorizationUrl.searchParams.set("prompt", "select_account");
+    return authorizationUrl.toString();
+  }
+
+  async googleOAuthCallback(rawRequest: unknown): Promise<string> {
+    if (!this.googleOAuthEnabled || !this.googleOAuthClientId || !this.googleOAuthClientSecret) {
+      throw new NotFoundException("Google Login no está configurado");
+    }
+    const query = z
+      .object({
+        state: z.string().min(32).max(4096),
+        code: z.string().min(8).max(4096).optional(),
+        error: z.string().max(256).optional(),
+      })
+      .parse(rawRequest);
+    const state = this.verifyGoogleOAuthState(query.state);
+    if (query.error || !query.code) {
+      return this.renderOAuthReturnToPortal(state.captiveState, "google_cancelled");
+    }
+
+    const tokens = await this.exchangeGoogleCode(query.code);
+    if (!tokens.access_token) {
+      throw new UnauthorizedException("Google no ha emitido un token de acceso válido");
+    }
+    const userInfo = await this.loadGoogleUserInfo(tokens.access_token);
+    if (!userInfo.email || userInfo.email_verified !== true) {
+      throw new UnauthorizedException("Google no ha verificado el email del usuario");
+    }
+
+    const authorization = await this.authorize({
+      state: state.captiveState,
+      method: "email",
+      firstName: userInfo.given_name ?? userInfo.name?.split(/\s+/)[0] ?? "Google",
+      lastName: userInfo.family_name ?? userInfo.name?.split(/\s+/).slice(1).join(" ") ?? "User",
+      email: userInfo.email,
+      acceptedLegalVersionId: state.acceptedLegalVersionId,
+      locale: state.locale,
+      marketingConsent: true,
+    });
+    return this.renderMikroTikLoginForm(authorization, state.captiveState);
   }
 
   async legal(
@@ -209,5 +338,87 @@ export class CaptiveService {
       }
       throw error;
     }
+  }
+
+  private signGoogleOAuthState(state: GoogleOAuthState): string {
+    const payload = encodeJson(state);
+    const signature = keyedDigest(payload, this.stateKey, "captive.google-oauth-state.v1").toString(
+      "base64url",
+    );
+    return `${payload}.${signature}`;
+  }
+
+  private verifyGoogleOAuthState(value: string): GoogleOAuthState {
+    const [payload, signature] = value.split(".");
+    if (!payload || !signature) throw new UnauthorizedException("Estado OAuth inválido");
+    const expected = keyedDigest(payload, this.stateKey, "captive.google-oauth-state.v1").toString(
+      "base64url",
+    );
+    if (signature !== expected) throw new UnauthorizedException("Estado OAuth inválido");
+    const state = decodeJson<GoogleOAuthState>(payload);
+    if (!state.captiveState || !state.acceptedLegalVersionId || Date.now() > state.expiresAt) {
+      throw new UnauthorizedException("Estado OAuth caducado");
+    }
+    return state;
+  }
+
+  private async exchangeGoogleCode(code: string): Promise<GoogleTokenResponse> {
+    const body = new URLSearchParams({
+      code,
+      client_id: this.googleOAuthClientId ?? "",
+      client_secret: this.googleOAuthClientSecret ?? "",
+      redirect_uri: this.googleOAuthRedirectUri,
+      grant_type: "authorization_code",
+    });
+    const response = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body,
+    });
+    const payload = (await response.json()) as GoogleTokenResponse;
+    if (!response.ok) {
+      throw new UnauthorizedException(payload.error_description ?? "Google OAuth ha fallado");
+    }
+    return payload;
+  }
+
+  private async loadGoogleUserInfo(accessToken: string): Promise<GoogleUserInfo> {
+    const response = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    if (!response.ok) throw new UnauthorizedException("No se pudo leer el perfil de Google");
+    return (await response.json()) as GoogleUserInfo;
+  }
+
+  private renderOAuthReturnToPortal(captiveState: string, reason: string): string {
+    const portalUrl = new URL("/", this.portalOrigin);
+    portalUrl.searchParams.set("state", captiveState);
+    portalUrl.searchParams.set("oauthError", reason);
+    return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=${escapeHtml(
+      portalUrl.toString(),
+    )}"></head><body><a href="${escapeHtml(portalUrl.toString())}">Volver al portal</a></body></html>`;
+  }
+
+  private renderMikroTikLoginForm(
+    authorization: CaptiveAuthorizationResult,
+    captiveState: string,
+  ): string {
+    const portalUrl = new URL("/", this.portalOrigin);
+    portalUrl.searchParams.set("state", captiveState);
+    return `<!doctype html>
+<html lang="es">
+  <head><meta charset="utf-8"><title>Conectando…</title></head>
+  <body>
+    <form id="wpass-login" action="${escapeHtml(authorization.loginUrl)}" method="post">
+      <input type="hidden" name="username" value="${escapeHtml(authorization.username)}">
+      <input type="hidden" name="password" value="${escapeHtml(authorization.password)}">
+      <input type="hidden" name="dst" value="https://www.entelsat.com/">
+      <input type="hidden" name="popup" value="false">
+      <noscript><button type="submit">Entrar en Internet</button></noscript>
+    </form>
+    <script>document.getElementById("wpass-login").submit();</script>
+    <p>Conectando a Internet… <a href="${escapeHtml(portalUrl.toString())}">volver</a></p>
+  </body>
+</html>`;
   }
 }

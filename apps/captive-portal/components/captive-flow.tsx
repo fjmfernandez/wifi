@@ -25,6 +25,7 @@ type CaptiveContext = {
   legalVersions: CaptiveLegalVersionRef[];
   availableMethods: LoginMethod[];
   languages: ("es" | "en")[];
+  googleOAuthEnabled?: boolean;
   portal?: {
     name: string;
     headline: string;
@@ -68,6 +69,8 @@ type PortalCopy = {
   privacy: string;
   marketing: string;
   connect: string;
+  google: string;
+  googleHint: string;
   secure: string;
 };
 
@@ -88,6 +91,8 @@ const copy: Record<"es" | "en", PortalCopy> = {
     privacy: "Ver condiciones",
     marketing: "",
     connect: "Conectarme a Internet",
+    google: "Continuar con Google",
+    googleHint: "Usa tu cuenta de Google para confirmar tus datos y acceder al WiFi.",
     secure: "Conexión protegida · Servicio gestionado por WPass",
   },
   en: {
@@ -106,6 +111,8 @@ const copy: Record<"es" | "en", PortalCopy> = {
     privacy: "View terms",
     marketing: "",
     connect: "Connect to the Internet",
+    google: "Continue with Google",
+    googleHint: "Use your Google account to confirm your details and access WiFi.",
     secure: "Protected connection · Service managed by WPass",
   },
 };
@@ -257,6 +264,37 @@ export function CaptiveFlow({ forceDemo = false }: { forceDemo?: boolean }) {
     }
     setAuthorization((await response.json()) as CaptiveAuthorizationResult);
     setPending(false);
+  }
+
+  function startGoogleOAuth() {
+    if (!legal) {
+      setError(
+        language === "es"
+          ? "Debes aceptar las condiciones de uso para continuar con Google."
+          : "You must accept the terms of use to continue with Google.",
+      );
+      return;
+    }
+    if (!selectedLegalVersion) {
+      setError(language === "es" ? "No hay versión legal disponible." : "No legal version found.");
+      return;
+    }
+    const state = searchParams.get("state");
+    if (!state) {
+      setError(
+        language === "es"
+          ? "No se ha recibido una sesión de acceso válida."
+          : "No valid captive session was received.",
+      );
+      return;
+    }
+
+    setError(undefined);
+    const url = new URL("/api/v1/captive/oauth/google/start", window.location.origin);
+    url.searchParams.set("state", state);
+    url.searchParams.set("acceptedLegalVersionId", selectedLegalVersion.id);
+    url.searchParams.set("locale", language);
+    window.location.assign(url.toString());
   }
 
   if (contextPending) {
@@ -542,6 +580,29 @@ export function CaptiveFlow({ forceDemo = false }: { forceDemo?: boolean }) {
             >
               {error}
             </p>
+          ) : null}
+          {context.googleOAuthEnabled ? (
+            <>
+              <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                <span className="h-px flex-1 bg-slate-200" />
+                {language === "es" ? "o" : "or"}
+                <span className="h-px flex-1 bg-slate-200" />
+              </div>
+              <button
+                type="button"
+                onClick={startGoogleOAuth}
+                disabled={pending}
+                className="flex h-12 items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-5 text-sm font-extrabold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-60"
+              >
+                <span className="grid size-6 place-items-center rounded-full bg-white text-base font-black text-[#4285f4] shadow-sm ring-1 ring-slate-200">
+                  G
+                </span>
+                {t.google}
+              </button>
+              <p className="-mt-1 text-center text-[11px] leading-5 text-slate-500">
+                {t.googleHint}
+              </p>
+            </>
           ) : null}
           <button
             type="submit"
