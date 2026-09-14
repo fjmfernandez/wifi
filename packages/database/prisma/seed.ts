@@ -273,7 +273,7 @@ async function main(): Promise<void> {
       `INSERT INTO app.login_methods
          (id, tenant_id, site_id, policy_version_id, kind, label, display_order,
           enabled, config, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, 'click', 'Conectar', 1, true, '{}'::jsonb, $5, $5)
+       VALUES ($1, $2, $3, $4, 'email', 'Registro con email', 1, true, '{}'::jsonb, $5, $5)
        ON CONFLICT (id) DO NOTHING`,
       [id.loginMethodA, id.tenantA, id.siteA, id.policyVersionA, now],
     );

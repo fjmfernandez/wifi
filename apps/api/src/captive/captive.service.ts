@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import {
   BadRequestException,
   Inject,
@@ -25,6 +27,8 @@ import {
   type CaptiveRepository,
 } from "./captive.repository.js";
 import { DemoCaptiveRepository } from "./demo-captive.repository.js";
+
+const publicCaptiveLoginMethods = new Set(["email", "voucher"]);
 
 export interface CaptiveStartResult {
   portalUrl: string;
@@ -92,6 +96,23 @@ function escapeHtml(value: string): string {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+}
+
+function sha256Hex(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+function addMarketingConsentClause(document: CaptiveLegalDocument): CaptiveLegalDocument {
+  const marker =
+    document.locale === "es" ? "comunicaciones comerciales" : "commercial communications";
+  if (document.content.toLowerCase().includes(marker)) return document;
+
+  const clause =
+    document.locale === "es"
+      ? "\n\nAl aceptar estas condiciones y acceder mediante email o Google, autorizas que el establecimiento pueda utilizar tus datos de contacto para enviarte ofertas, ventajas y comunicaciones comerciales relacionadas con sus servicios. Podrás solicitar la baja o retirada del consentimiento conforme a la política de privacidad."
+      : "\n\nBy accepting these terms and accessing via email or Google, you authorize the venue to use your contact details to send offers, benefits and commercial communications related to its services. You may request unsubscribe or withdrawal of consent under the privacy policy.";
+  const content = `${document.content}${clause}`;
+  return { ...document, content, contentHash: sha256Hex(content) };
 }
 
 @Injectable()
@@ -189,14 +210,19 @@ export class CaptiveService {
       keyedDigest(state, this.stateKey, "captive.state.v1"),
     );
     if (!attempt) throw new NotFoundException("La sesión cautiva ha caducado");
+    const availableMethods = attempt.gateway.availableMethods.filter((method) =>
+      publicCaptiveLoginMethods.has(method),
+    );
+    if (availableMethods.length === 0) {
+      throw new NotFoundException("No hay métodos de acceso activos para esta sede");
+    }
     return {
       siteName: attempt.gateway.siteName,
       legalVersionId: attempt.gateway.legalVersionId,
       legalVersions: attempt.gateway.legalVersions,
-      availableMethods: attempt.gateway.availableMethods,
+      availableMethods,
       languages: attempt.gateway.legalVersions.map((version) => version.locale),
-      googleOAuthEnabled:
-        this.googleOAuthEnabled && attempt.gateway.availableMethods.includes("email"),
+      googleOAuthEnabled: this.googleOAuthEnabled && availableMethods.includes("email"),
       ...(attempt.gateway.portal ? { portal: attempt.gateway.portal } : {}),
     };
   }
@@ -298,7 +324,7 @@ export class CaptiveService {
       version.locale,
     );
     if (!document) throw new NotFoundException("La versión legal no está disponible");
-    return captiveLegalDocumentSchema.parse(document);
+    return captiveLegalDocumentSchema.parse(addMarketingConsentClause(document));
   }
 
   async authorize(rawRequest: unknown): Promise<CaptiveAuthorizationResult> {
@@ -307,6 +333,9 @@ export class CaptiveService {
     const attempt = await this.repository.getAttempt(stateDigest);
     if (!attempt)
       throw new UnauthorizedException("La sesión cautiva no es válida o ya fue utilizada");
+    if (!publicCaptiveLoginMethods.has(request.method)) {
+      throw new BadRequestException("El acceso libre no está permitido");
+    }
     if (!attempt.gateway.availableMethods.includes(request.method)) {
       throw new BadRequestException("Método de acceso no disponible");
     }

@@ -43,7 +43,7 @@ const demoContext: CaptiveContext = {
     { id: "0198be3c-70f4-7a10-9fc4-3f2f48a01001", locale: "es" },
     { id: "0198be3c-70f4-7a10-9fc4-3f2f48a01002", locale: "en" },
   ],
-  availableMethods: ["click", "email", "voucher"],
+  availableMethods: ["email", "voucher"],
   languages: ["es", "en"],
   portal: {
     name: "WPass",
@@ -120,7 +120,7 @@ const copy: Record<"es" | "en", PortalCopy> = {
 export function CaptiveFlow({ forceDemo = false }: { forceDemo?: boolean }) {
   const searchParams = useSearchParams();
   const [language, setLanguage] = useState<"es" | "en">("es");
-  const [method, setMethod] = useState<LoginMethod>(forceDemo ? "email" : "click");
+  const [method, setMethod] = useState<LoginMethod>("email");
   const [context, setContext] = useState<CaptiveContext>();
   const [contextPending, setContextPending] = useState(true);
   const [contextError, setContextError] = useState<string>();
@@ -164,7 +164,7 @@ export function CaptiveFlow({ forceDemo = false }: { forceDemo?: boolean }) {
           throw new Error("CAPTIVE_METHODS_UNAVAILABLE");
         }
         setContext(nextContext);
-        setMethod(nextContext.availableMethods[0] ?? "click");
+        setMethod(nextContext.availableMethods[0] ?? "email");
         if (!nextContext.languages.includes("es")) {
           setLanguage(nextContext.languages[0] ?? "es");
         }
@@ -438,7 +438,6 @@ export function CaptiveFlow({ forceDemo = false }: { forceDemo?: boolean }) {
           aria-label="Método de acceso"
         >
           {[
-            { id: "click" as const, label: t.click, icon: Wifi },
             { id: "email" as const, label: t.email, icon: Mail },
             { id: "pin" as const, label: t.pin, icon: KeyRound },
             { id: "voucher" as const, label: t.voucher, icon: KeyRound },

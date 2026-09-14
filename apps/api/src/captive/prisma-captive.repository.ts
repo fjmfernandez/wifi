@@ -27,7 +27,7 @@ import type {
   PendingCaptiveAttempt,
 } from "./captive.repository.js";
 
-const supportedMethods = new Set<LoginMethod>(["click", "email", "pin", "voucher"]);
+const supportedMethods = new Set<LoginMethod>(["email", "voucher"]);
 
 function isLoginMethod(value: string): value is LoginMethod {
   return supportedMethods.has(value as LoginMethod);

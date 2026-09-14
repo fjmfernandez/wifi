@@ -48,7 +48,7 @@ export class DemoCaptiveRepository implements CaptiveRepository {
         { id: "0198be3c-70f4-7a10-9fc4-3f2f48a01005", locale: "en" },
       ],
       allowedLoginOrigins: ["https://hotspot.local", "http://hotspot.local"],
-      availableMethods: ["click", "email", "voucher"],
+      availableMethods: ["email", "voucher"],
     };
   }
 

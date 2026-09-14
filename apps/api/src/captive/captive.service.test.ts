@@ -32,11 +32,15 @@ describe("CaptiveService", () => {
     const started = await service.start(startRequest);
     const state = new URL(started.portalUrl).searchParams.get("state")!;
     const context = await service.context(state);
+    expect(context.availableMethods).toEqual(["email", "voucher"]);
     const request = {
       state,
-      method: "click",
+      method: "email",
+      firstName: "Claudia",
+      lastName: "Entelsat",
+      email: "claudia@example.test",
       acceptedLegalVersionId: context.legalVersionId,
-      marketingConsent: false,
+      marketingConsent: true,
     };
     await expect(service.authorize(request)).resolves.toMatchObject({
       loginUrl: "https://hotspot.local/login",
