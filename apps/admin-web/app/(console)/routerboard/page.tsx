@@ -148,6 +148,22 @@ function buildRouterScript({
   const sstpConnectToWithPort = `${values.sstpServer}:${sstpPort}`;
   const captiveHost = "captive.wpass.es";
   const captiveIp = values.captiveIp || "62.84.190.174";
+  const googleWalledGardenHosts = [
+    "accounts.google.com",
+    "accounts.youtube.com",
+    "oauth2.googleapis.com",
+    "openidconnect.googleapis.com",
+    "www.googleapis.com",
+    "ssl.gstatic.com",
+    "www.gstatic.com",
+    "fonts.gstatic.com",
+    "fonts.googleapis.com",
+    "lh3.googleusercontent.com",
+    "*.google.com",
+    "*.gstatic.com",
+    "*.googleapis.com",
+    "*.googleusercontent.com",
+  ];
   const loginHtml = buildLoginHtml(material.gatewayLocator).replace(/\s+/g, " ").trim();
   const apiJson = buildApiJson().replace(/\s+/g, " ").trim();
   const redirectHtml = buildRouterRedirectHtml().replace(/\s+/g, " ").trim();
@@ -219,6 +235,12 @@ function buildRouterScript({
     `/ip hotspot walled-garden add dst-host=${routerQuote("wpass.es")} comment=${routerQuote(
       "WPass captive",
     )}`,
+    ...googleWalledGardenHosts.map(
+      (host) =>
+        `/ip hotspot walled-garden add dst-host=${routerQuote(host)} comment=${routerQuote(
+          "WPass captive",
+        )}`,
+    ),
     `/ip hotspot walled-garden ip add dst-address=${captiveIp} protocol=tcp dst-port=80 action=accept comment=${routerQuote(
       "WPass captive",
     )}`,

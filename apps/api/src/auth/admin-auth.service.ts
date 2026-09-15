@@ -273,11 +273,20 @@ export class AdminAuthService {
       throw new UnauthorizedException("Este email de Google no está autorizado para WPass");
     }
     const emailHmac = keyedDigest(email, this.emailKey, "admin.email.v1");
-    const rows = await this.database.client.$queryRaw<AdminAuthRow[]>`
+    let rows = await this.database.client.$queryRaw<AdminAuthRow[]>`
       SELECT user_id, user_status, password_hash, hash_algorithm,
              failed_attempts, locked_until, active_tenant_ids
         FROM app.lookup_admin_auth(${emailHmac})
     `;
+
+    if (rows.length === 0 && this.googleAllowedEmails.has(email)) {
+      rows = await this.database.client.$queryRaw<AdminAuthRow[]>`
+        SELECT user_id, user_status, password_hash, hash_algorithm,
+               failed_attempts, locked_until, active_tenant_ids
+          FROM app.lookup_primary_admin_auth()
+      `;
+    }
+
     const auth = rows[0];
     const tenantId = auth?.active_tenant_ids[0];
     if (!auth || !tenantId || auth.user_status !== "active") {
