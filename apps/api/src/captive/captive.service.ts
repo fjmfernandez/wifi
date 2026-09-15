@@ -14,8 +14,10 @@ import {
   captiveLegalDocumentSchema,
   captiveStartSchema,
   idSchema,
+  localeSchema,
   type CaptiveAuthorizationResult,
   type CaptiveLegalDocument,
+  type Locale,
 } from "@wifi/contracts";
 import { deriveScopedKey, generateOpaqueToken, keyedDigest } from "@wifi/security";
 import { z } from "zod";
@@ -40,7 +42,7 @@ export interface CaptivePublicContext {
   legalVersionId: string;
   legalVersions: CaptiveGatewayContext["legalVersions"];
   availableMethods: CaptiveGatewayContext["availableMethods"];
-  languages: readonly ("es" | "en")[];
+  languages: readonly Locale[];
   googleOAuthEnabled: boolean;
   portal?: CaptiveGatewayContext["portal"];
 }
@@ -55,7 +57,7 @@ export interface CaptiveGatewayPingResult {
 interface GoogleOAuthState {
   captiveState: string;
   acceptedLegalVersionId: string;
-  locale: "es" | "en";
+  locale: Locale;
   expiresAt: number;
 }
 
@@ -103,14 +105,24 @@ function sha256Hex(value: string): string {
 }
 
 function addMarketingConsentClause(document: CaptiveLegalDocument): CaptiveLegalDocument {
-  const marker =
-    document.locale === "es" ? "comunicaciones comerciales" : "commercial communications";
+  const markerByLocale: Record<Locale, string> = {
+    es: "comunicaciones comerciales",
+    en: "commercial communications",
+    de: "kommerzielle mitteilungen",
+    fr: "communications commerciales",
+    ar: "رسائل تجارية",
+  };
+  const marker = markerByLocale[document.locale];
   if (document.content.toLowerCase().includes(marker)) return document;
 
-  const clause =
-    document.locale === "es"
-      ? "\n\nAl aceptar estas condiciones y acceder mediante email o Google, autorizas que el establecimiento pueda utilizar tus datos de contacto para enviarte ofertas, ventajas y comunicaciones comerciales relacionadas con sus servicios. Podrás solicitar la baja o retirada del consentimiento conforme a la política de privacidad."
-      : "\n\nBy accepting these terms and accessing via email or Google, you authorize the venue to use your contact details to send offers, benefits and commercial communications related to its services. You may request unsubscribe or withdrawal of consent under the privacy policy.";
+  const clauseByLocale: Record<Locale, string> = {
+    es: "\n\nAl aceptar estas condiciones y acceder mediante email o Google, autorizas que el establecimiento pueda utilizar tus datos de contacto para enviarte ofertas, ventajas y comunicaciones comerciales relacionadas con sus servicios. Podrás solicitar la baja o retirada del consentimiento conforme a la política de privacidad.",
+    en: "\n\nBy accepting these terms and accessing via email or Google, you authorize the venue to use your contact details to send offers, benefits and commercial communications related to its services. You may request unsubscribe or withdrawal of consent under the privacy policy.",
+    de: "\n\nMit der Annahme dieser Bedingungen und dem Zugang per E-Mail oder Google stimmen Sie zu, dass der Betrieb Ihre Kontaktdaten verwenden darf, um Ihnen Angebote, Vorteile und kommerzielle Mitteilungen im Zusammenhang mit seinen Dienstleistungen zu senden. Sie können die Abmeldung oder den Widerruf Ihrer Einwilligung gemäß der Datenschutzerklärung verlangen.",
+    fr: "\n\nEn acceptant ces conditions et en accédant par email ou Google, vous autorisez l’établissement à utiliser vos coordonnées pour vous envoyer des offres, avantages et communications commerciales liées à ses services. Vous pouvez demander la désinscription ou le retrait de votre consentement conformément à la politique de confidentialité.",
+    ar: "\n\nبقبول هذه الشروط والدخول عبر البريد الإلكتروني أو Google، فإنك تسمح للمنشأة باستخدام بيانات الاتصال الخاصة بك لإرسال عروض ومزايا ورسائل تجارية متعلقة بخدماتها. يمكنك طلب إلغاء الاشتراك أو سحب الموافقة وفقًا لسياسة الخصوصية.",
+  };
+  const clause = clauseByLocale[document.locale];
   const content = `${document.content}${clause}`;
   return { ...document, content, contentHash: sha256Hex(content) };
 }
@@ -308,7 +320,7 @@ export class CaptiveService {
   ): Promise<CaptiveLegalDocument> {
     const state = z.string().min(32).max(2048).parse(rawState);
     const legalVersionId = idSchema.parse(rawVersion);
-    const locale = z.enum(["es", "en"]).parse(rawLocale);
+    const locale = localeSchema.parse(rawLocale);
     const attempt = await this.repository.getAttempt(
       keyedDigest(state, this.stateKey, "captive.state.v1"),
     );

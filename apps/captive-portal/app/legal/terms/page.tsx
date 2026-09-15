@@ -1,4 +1,4 @@
-import type { CaptiveLegalDocument } from "@wifi/contracts";
+import { localeSchema, type CaptiveLegalDocument, type Locale } from "@wifi/contracts";
 import Link from "next/link";
 
 type TermsPageProps = {
@@ -16,6 +16,22 @@ const demoDocument: CaptiveLegalDocument = {
     "La red WiFi se ofrece para facilitar el acceso a Internet. Al aceptar estas condiciones autorizas el tratamiento de tus datos de acceso y contacto para prestar el servicio y para que el establecimiento pueda enviarte ofertas, ventajas y comunicaciones comerciales relacionadas con sus servicios. Puedes solicitar información, baja o ejercicio de derechos al responsable del establecimiento.",
   contentHash: "0".repeat(64),
   publishedAt: new Date(0).toISOString(),
+};
+
+const demoTitles: Record<Locale, string> = {
+  es: "Condiciones de uso y privacidad",
+  en: "Terms of use and privacy",
+  de: "Nutzungsbedingungen und Datenschutz",
+  fr: "Conditions d’utilisation et confidentialité",
+  ar: "شروط الاستخدام والخصوصية",
+};
+
+const demoContent: Record<Locale, string> = {
+  es: demoDocument.content,
+  en: "The WiFi network is provided to enable Internet access. By accepting these terms, you authorize the processing of your access and contact data to provide the service and so that the venue may send you offers, benefits and commercial communications related to its services. You may request information, unsubscribe or exercise your rights with the venue controller.",
+  de: "Das WLAN wird bereitgestellt, um Internetzugang zu ermöglichen. Mit der Annahme dieser Bedingungen autorisieren Sie die Verarbeitung Ihrer Zugangs- und Kontaktdaten zur Erbringung des Dienstes und damit der Betrieb Ihnen Angebote, Vorteile und kommerzielle Mitteilungen im Zusammenhang mit seinen Dienstleistungen senden kann. Sie können Informationen, Abmeldung oder die Ausübung Ihrer Rechte beim Verantwortlichen des Betriebs anfordern.",
+  fr: "Le réseau WiFi est fourni afin de permettre l’accès à Internet. En acceptant ces conditions, vous autorisez le traitement de vos données d’accès et de contact pour fournir le service et afin que l’établissement puisse vous envoyer des offres, avantages et communications commerciales liées à ses services. Vous pouvez demander des informations, la désinscription ou l’exercice de vos droits auprès du responsable de l’établissement.",
+  ar: "يتم توفير شبكة WiFi لإتاحة الوصول إلى الإنترنت. بقبول هذه الشروط، فإنك تسمح بمعالجة بيانات الوصول والاتصال الخاصة بك لتقديم الخدمة، كما تسمح للمنشأة بإرسال عروض ومزايا ورسائل تجارية متعلقة بخدماتها. يمكنك طلب المعلومات أو إلغاء الاشتراك أو ممارسة حقوقك لدى مسؤول المنشأة.",
 };
 
 async function loadLegalDocument(
@@ -38,15 +54,24 @@ async function loadLegalDocument(
 
 export default async function TermsPage({ searchParams }: TermsPageProps) {
   const { state = "", version = "", locale = "es" } = await searchParams;
+  const selectedLocale = localeSchema.catch("es").parse(locale);
   const document =
     process.env.NEXT_PUBLIC_DEMO_MODE === "true"
-      ? { ...demoDocument, locale: locale === "en" ? "en" : "es" }
-      : await loadLegalDocument(state, version, locale);
+      ? {
+          ...demoDocument,
+          locale: selectedLocale,
+          title: demoTitles[selectedLocale],
+          content: demoContent[selectedLocale],
+        }
+      : await loadLegalDocument(state, version, selectedLocale);
   const backUrl = state ? `/?state=${encodeURIComponent(state)}` : "/";
 
   return (
     <main className="min-h-dvh bg-slate-50 px-5 py-10 text-slate-700">
-      <article className="mx-auto max-w-2xl rounded-2xl border border-slate-200 bg-white p-7 shadow-sm">
+      <article
+        className="mx-auto max-w-2xl rounded-2xl border border-slate-200 bg-white p-7 shadow-sm"
+        dir={selectedLocale === "ar" ? "rtl" : "ltr"}
+      >
         <Link href={backUrl} className="text-xs font-bold text-hotel-700">
           ← Volver al acceso WiFi
         </Link>

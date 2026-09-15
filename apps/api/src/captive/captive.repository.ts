@@ -3,6 +3,7 @@ import type {
   CaptiveAuthorizationResult,
   CaptiveLegalDocument,
   CaptiveLegalVersionRef,
+  Locale,
   LoginMethod,
 } from "@wifi/contracts";
 
@@ -54,7 +55,7 @@ export interface CaptiveRepository {
     tenantId: string,
     siteName: string,
     legalVersionId: string,
-    locale: "es" | "en",
+    locale: Locale,
   ): Promise<CaptiveLegalDocument | undefined>;
   issueAuthorization(
     stateDigest: Buffer,

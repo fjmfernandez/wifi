@@ -2,7 +2,6 @@
 
 import {
   Check,
-  ChevronDown,
   KeyRound,
   LoaderCircle,
   Lock,
@@ -16,15 +15,25 @@ import { useEffect, useState, type FormEvent } from "react";
 import type {
   CaptiveAuthorizationResult,
   CaptiveLegalVersionRef,
+  Locale,
   LoginMethod,
 } from "@wifi/contracts";
+
+const supportedLocales = ["es", "en", "de", "fr", "ar"] as const satisfies readonly Locale[];
+const localeLabels: Record<Locale, string> = {
+  es: "Español",
+  en: "English",
+  de: "Deutsch",
+  fr: "Français",
+  ar: "العربية",
+};
 
 type CaptiveContext = {
   siteName: string;
   legalVersionId: string;
   legalVersions: CaptiveLegalVersionRef[];
   availableMethods: LoginMethod[];
-  languages: ("es" | "en")[];
+  languages: Locale[];
   googleOAuthEnabled?: boolean;
   portal?: {
     name: string;
@@ -42,9 +51,12 @@ const demoContext: CaptiveContext = {
   legalVersions: [
     { id: "0198be3c-70f4-7a10-9fc4-3f2f48a01001", locale: "es" },
     { id: "0198be3c-70f4-7a10-9fc4-3f2f48a01002", locale: "en" },
+    { id: "0198be3c-70f4-7a10-9fc4-3f2f48a01003", locale: "de" },
+    { id: "0198be3c-70f4-7a10-9fc4-3f2f48a01006", locale: "fr" },
+    { id: "0198be3c-70f4-7a10-9fc4-3f2f48a01007", locale: "ar" },
   ],
   availableMethods: ["email", "voucher"],
-  languages: ["es", "en"],
+  languages: ["es", "en", "de", "fr", "ar"],
   portal: {
     name: "WPass",
     headline: "Bienvenido al WiFi de Entelsat",
@@ -72,9 +84,29 @@ type PortalCopy = {
   google: string;
   googleHint: string;
   secure: string;
+  loading: string;
+  unavailableTitle: string;
+  unavailableBody: string;
+  termsRequired: string;
+  googleTermsRequired: string;
+  noLegal: string;
+  invalidSession: string;
+  authorizeError: string;
+  readyTitle: string;
+  readyBody: string;
+  demoButton: string;
+  retryButton: string;
+  onlineButton: string;
+  guestWifi: string;
+  welcome: (siteName: string) => string;
+  clickInfo: string;
+  or: string;
+  firstNamePlaceholder: string;
+  lastNamePlaceholder: string;
+  emailPlaceholder: string;
 };
 
-const copy: Record<"es" | "en", PortalCopy> = {
+const copy: Record<Locale, PortalCopy> = {
   es: {
     description: "Conéctate al WiFi de huéspedes de forma segura.",
     click: "Acceso directo",
@@ -94,6 +126,29 @@ const copy: Record<"es" | "en", PortalCopy> = {
     google: "Continuar con Google",
     googleHint: "Usa tu cuenta de Google para confirmar tus datos y acceder al WiFi.",
     secure: "Conexión protegida · Servicio gestionado por WPass",
+    loading: "Preparando tu acceso seguro…",
+    unavailableTitle: "Acceso no disponible",
+    unavailableBody:
+      "No hemos podido validar esta sesión. Vuelve a seleccionar la red WiFi.",
+    termsRequired: "Debes aceptar las condiciones de uso para continuar.",
+    googleTermsRequired: "Debes aceptar las condiciones de uso para continuar con Google.",
+    noLegal: "No hay versión legal disponible.",
+    invalidSession: "No se ha recibido una sesión de acceso válida.",
+    authorizeError:
+      "No hemos podido autorizar el acceso. Comprueba los datos o inténtalo de nuevo.",
+    readyTitle: "¡Todo listo!",
+    readyBody: "Tu acceso se ha autorizado. Pulsa el botón para completar la conexión.",
+    demoButton: "Simular Internet y redirigir",
+    retryButton: "Probar otra vez",
+    onlineButton: "Entrar en Internet",
+    guestWifi: "WiFi invitados",
+    welcome: (siteName) => `Bienvenido a ${siteName}`,
+    clickInfo:
+      "Acceso inmediato tras aceptar las condiciones. No solicitaremos datos personales adicionales.",
+    or: "o",
+    firstNamePlaceholder: "Tu nombre",
+    lastNamePlaceholder: "Tus apellidos",
+    emailPlaceholder: "nombre@ejemplo.com",
   },
   en: {
     description: "Connect securely to our guest WiFi.",
@@ -114,12 +169,152 @@ const copy: Record<"es" | "en", PortalCopy> = {
     google: "Continue with Google",
     googleHint: "Use your Google account to confirm your details and access WiFi.",
     secure: "Protected connection · Service managed by WPass",
+    loading: "Preparing your secure access…",
+    unavailableTitle: "Access unavailable",
+    unavailableBody: "We could not validate this session. Please select the WiFi network again.",
+    termsRequired: "You must accept the terms of use to continue.",
+    googleTermsRequired: "You must accept the terms of use to continue with Google.",
+    noLegal: "No legal version found.",
+    invalidSession: "No valid captive session was received.",
+    authorizeError: "We could not authorize access. Check your details and try again.",
+    readyTitle: "You're all set!",
+    readyBody: "Your access has been authorized. Tap the button to complete the connection.",
+    demoButton: "Simulate Internet access",
+    retryButton: "Try again",
+    onlineButton: "Go online",
+    guestWifi: "Guest WiFi",
+    welcome: (siteName) => `Welcome to ${siteName}`,
+    clickInfo: "Immediate access after accepting the terms. No additional personal information is requested.",
+    or: "or",
+    firstNamePlaceholder: "Your name",
+    lastNamePlaceholder: "Your surname",
+    emailPlaceholder: "name@example.com",
+  },
+  de: {
+    description: "Verbinden Sie sich sicher mit unserem Gäste-WLAN.",
+    click: "Direktzugang",
+    email: "E-Mail",
+    firstNameLabel: "Vorname",
+    lastNameLabel: "Nachname",
+    voucher: "Voucher",
+    pin: "PIN",
+    emailLabel: "Ihre E-Mail-Adresse",
+    voucherLabel: "Zugangscode",
+    pinLabel: "Zugangs-PIN",
+    terms:
+      "Ich akzeptiere die Nutzungsbedingungen, die Datenschutzerklärung und dass der Betrieb mir Angebote und kommerzielle Mitteilungen senden darf.",
+    privacy: "Bedingungen ansehen",
+    marketing: "",
+    connect: "Mit dem Internet verbinden",
+    google: "Mit Google fortfahren",
+    googleHint: "Nutzen Sie Ihr Google-Konto, um Ihre Daten zu bestätigen und WLAN-Zugang zu erhalten.",
+    secure: "Geschützte Verbindung · Dienst verwaltet von WPass",
+    loading: "Sicherer Zugang wird vorbereitet…",
+    unavailableTitle: "Zugang nicht verfügbar",
+    unavailableBody: "Wir konnten diese Sitzung nicht validieren. Bitte wählen Sie das WLAN erneut aus.",
+    termsRequired: "Sie müssen die Nutzungsbedingungen akzeptieren, um fortzufahren.",
+    googleTermsRequired: "Sie müssen die Nutzungsbedingungen akzeptieren, um mit Google fortzufahren.",
+    noLegal: "Keine rechtliche Version verfügbar.",
+    invalidSession: "Es wurde keine gültige Captive-Sitzung empfangen.",
+    authorizeError: "Der Zugang konnte nicht autorisiert werden. Prüfen Sie Ihre Daten und versuchen Sie es erneut.",
+    readyTitle: "Alles bereit!",
+    readyBody: "Ihr Zugang wurde autorisiert. Tippen Sie auf die Schaltfläche, um die Verbindung abzuschließen.",
+    demoButton: "Internetzugang simulieren",
+    retryButton: "Erneut testen",
+    onlineButton: "Ins Internet gehen",
+    guestWifi: "Gäste-WLAN",
+    welcome: (siteName) => `Willkommen bei ${siteName}`,
+    clickInfo: "Sofortiger Zugang nach Annahme der Bedingungen. Es werden keine weiteren personenbezogenen Daten angefordert.",
+    or: "oder",
+    firstNamePlaceholder: "Ihr Vorname",
+    lastNamePlaceholder: "Ihr Nachname",
+    emailPlaceholder: "name@beispiel.de",
+  },
+  fr: {
+    description: "Connectez-vous en toute sécurité au WiFi invité.",
+    click: "Accès direct",
+    email: "Email",
+    firstNameLabel: "Prénom",
+    lastNameLabel: "Nom",
+    voucher: "Voucher",
+    pin: "PIN",
+    emailLabel: "Votre adresse email",
+    voucherLabel: "Code d’accès",
+    pinLabel: "PIN d’accès",
+    terms:
+      "J’accepte les conditions d’utilisation, la politique de confidentialité et que l’établissement puisse m’envoyer des offres et communications commerciales.",
+    privacy: "Voir les conditions",
+    marketing: "",
+    connect: "Me connecter à Internet",
+    google: "Continuer avec Google",
+    googleHint: "Utilisez votre compte Google pour confirmer vos données et accéder au WiFi.",
+    secure: "Connexion protégée · Service géré par WPass",
+    loading: "Préparation de votre accès sécurisé…",
+    unavailableTitle: "Accès indisponible",
+    unavailableBody: "Nous n’avons pas pu valider cette session. Sélectionnez à nouveau le réseau WiFi.",
+    termsRequired: "Vous devez accepter les conditions d’utilisation pour continuer.",
+    googleTermsRequired: "Vous devez accepter les conditions d’utilisation pour continuer avec Google.",
+    noLegal: "Aucune version légale disponible.",
+    invalidSession: "Aucune session captive valide n’a été reçue.",
+    authorizeError: "Nous n’avons pas pu autoriser l’accès. Vérifiez vos informations et réessayez.",
+    readyTitle: "Tout est prêt !",
+    readyBody: "Votre accès a été autorisé. Appuyez sur le bouton pour finaliser la connexion.",
+    demoButton: "Simuler l’accès Internet",
+    retryButton: "Réessayer",
+    onlineButton: "Accéder à Internet",
+    guestWifi: "WiFi invité",
+    welcome: (siteName) => `Bienvenue chez ${siteName}`,
+    clickInfo: "Accès immédiat après acceptation des conditions. Aucune donnée personnelle supplémentaire ne sera demandée.",
+    or: "ou",
+    firstNamePlaceholder: "Votre prénom",
+    lastNamePlaceholder: "Votre nom",
+    emailPlaceholder: "nom@exemple.fr",
+  },
+  ar: {
+    description: "اتصل بشبكة WiFi الضيوف بأمان.",
+    click: "دخول مباشر",
+    email: "البريد الإلكتروني",
+    firstNameLabel: "الاسم",
+    lastNameLabel: "اسم العائلة",
+    voucher: "قسيمة",
+    pin: "رمز PIN",
+    emailLabel: "بريدك الإلكتروني",
+    voucherLabel: "رمز الدخول",
+    pinLabel: "رمز PIN للدخول",
+    terms:
+      "أوافق على شروط الاستخدام وسياسة الخصوصية، وأوافق على أن ترسل لي المنشأة عروضًا ورسائل تجارية.",
+    privacy: "عرض الشروط",
+    marketing: "",
+    connect: "الاتصال بالإنترنت",
+    google: "المتابعة باستخدام Google",
+    googleHint: "استخدم حساب Google لتأكيد بياناتك والوصول إلى شبكة WiFi.",
+    secure: "اتصال محمي · خدمة مُدارة بواسطة WPass",
+    loading: "جارٍ تجهيز الوصول الآمن…",
+    unavailableTitle: "الوصول غير متاح",
+    unavailableBody: "تعذر التحقق من هذه الجلسة. يرجى اختيار شبكة WiFi مرة أخرى.",
+    termsRequired: "يجب قبول شروط الاستخدام للمتابعة.",
+    googleTermsRequired: "يجب قبول شروط الاستخدام للمتابعة باستخدام Google.",
+    noLegal: "لا توجد نسخة قانونية متاحة.",
+    invalidSession: "لم يتم استلام جلسة صالحة.",
+    authorizeError: "تعذر السماح بالدخول. تحقق من البيانات وحاول مرة أخرى.",
+    readyTitle: "كل شيء جاهز!",
+    readyBody: "تم السماح بالوصول. اضغط على الزر لإكمال الاتصال.",
+    demoButton: "محاكاة الوصول إلى الإنترنت",
+    retryButton: "المحاولة مرة أخرى",
+    onlineButton: "الدخول إلى الإنترنت",
+    guestWifi: "WiFi الضيوف",
+    welcome: (siteName) => `مرحبًا بك في ${siteName}`,
+    clickInfo: "دخول فوري بعد قبول الشروط. لن نطلب بيانات شخصية إضافية.",
+    or: "أو",
+    firstNamePlaceholder: "اسمك",
+    lastNamePlaceholder: "اسم العائلة",
+    emailPlaceholder: "name@example.com",
   },
 };
 
 export function CaptiveFlow({ forceDemo = false }: { forceDemo?: boolean }) {
   const searchParams = useSearchParams();
-  const [language, setLanguage] = useState<"es" | "en">("es");
+  const [language, setLanguage] = useState<Locale>("es");
   const [method, setMethod] = useState<LoginMethod>("email");
   const [context, setContext] = useState<CaptiveContext>();
   const [contextPending, setContextPending] = useState(true);
@@ -128,7 +323,8 @@ export function CaptiveFlow({ forceDemo = false }: { forceDemo?: boolean }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
   const [authorization, setAuthorization] = useState<CaptiveAuthorizationResult>();
-  const t = copy[language];
+  const t = copy[language] ?? copy.es;
+  const isRtl = language === "ar";
   const primaryColor = context?.portal?.primaryColor ?? "#0d9488";
   const redirectUrl = context?.portal?.redirectUrl ?? "https://www.entelsat.com/";
   const selectedLegalVersion =
@@ -145,7 +341,7 @@ export function CaptiveFlow({ forceDemo = false }: { forceDemo?: boolean }) {
 
     const state = searchParams.get("state");
     if (!state) {
-      setContextError("No se ha recibido una sesión de acceso válida.");
+      setContextError(copy.es.invalidSession);
       setContextPending(false);
       return;
     }
@@ -182,11 +378,7 @@ export function CaptiveFlow({ forceDemo = false }: { forceDemo?: boolean }) {
   async function authorize(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!legal) {
-      setError(
-        language === "es"
-          ? "Debes aceptar las condiciones de uso para continuar."
-          : "You must accept the terms of use to continue.",
-      );
+      setError(t.termsRequired);
       return;
     }
     setPending(true);
@@ -254,11 +446,7 @@ export function CaptiveFlow({ forceDemo = false }: { forceDemo?: boolean }) {
       body: JSON.stringify(payload),
     }).catch(() => undefined);
     if (!response?.ok) {
-      setError(
-        language === "es"
-          ? "No hemos podido autorizar el acceso. Comprueba los datos o inténtalo de nuevo."
-          : "We could not authorize access. Check your details and try again.",
-      );
+      setError(t.authorizeError);
       setPending(false);
       return;
     }
@@ -268,24 +456,16 @@ export function CaptiveFlow({ forceDemo = false }: { forceDemo?: boolean }) {
 
   function startGoogleOAuth() {
     if (!legal) {
-      setError(
-        language === "es"
-          ? "Debes aceptar las condiciones de uso para continuar con Google."
-          : "You must accept the terms of use to continue with Google.",
-      );
+      setError(t.googleTermsRequired);
       return;
     }
     if (!selectedLegalVersion) {
-      setError(language === "es" ? "No hay versión legal disponible." : "No legal version found.");
+      setError(t.noLegal);
       return;
     }
     const state = searchParams.get("state");
     if (!state) {
-      setError(
-        language === "es"
-          ? "No se ha recibido una sesión de acceso válida."
-          : "No valid captive session was received.",
-      );
+      setError(t.invalidSession);
       return;
     }
 
@@ -303,7 +483,7 @@ export function CaptiveFlow({ forceDemo = false }: { forceDemo?: boolean }) {
         <span>
           <LoaderCircle className="mx-auto size-7 animate-spin text-hotel-600" />
           <span className="mt-4 block text-sm font-semibold text-slate-600">
-            Preparando tu acceso seguro…
+            {t.loading}
           </span>
         </span>
       </div>
@@ -316,9 +496,9 @@ export function CaptiveFlow({ forceDemo = false }: { forceDemo?: boolean }) {
         <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-rose-50 text-rose-600">
           <Lock className="size-6" />
         </span>
-        <h1 className="mt-5 text-xl font-extrabold text-slate-900">Acceso no disponible</h1>
+        <h1 className="mt-5 text-xl font-extrabold text-slate-900">{t.unavailableTitle}</h1>
         <p className="mx-auto mt-2 max-w-xs text-sm leading-6 text-slate-500">
-          {contextError ?? "No hemos podido validar esta sesión."} Vuelve a seleccionar la red WiFi.
+          {contextError ?? t.unavailableBody}
         </p>
       </div>
     );
@@ -326,17 +506,15 @@ export function CaptiveFlow({ forceDemo = false }: { forceDemo?: boolean }) {
 
   if (authorization) {
     return (
-      <div className="px-6 py-8 text-center sm:px-9">
+      <div className="px-6 py-8 text-center sm:px-9" dir={isRtl ? "rtl" : "ltr"}>
         <span className="mx-auto grid size-16 place-items-center rounded-full bg-emerald-50 text-emerald-600 ring-8 ring-emerald-50/60">
           <Check className="size-7" strokeWidth={2.5} />
         </span>
         <h2 className="mt-6 text-2xl font-extrabold tracking-tight text-slate-900">
-          {language === "es" ? "¡Todo listo!" : "You're all set!"}
+          {t.readyTitle}
         </h2>
         <p className="mx-auto mt-2 max-w-xs text-sm leading-6 text-slate-500">
-          {language === "es"
-            ? "Tu acceso se ha autorizado. Pulsa el botón para completar la conexión."
-            : "Your access has been authorized. Tap the button to complete the connection."}
+          {t.readyBody}
         </p>
         {forceDemo || process.env.NEXT_PUBLIC_DEMO_MODE === "true" ? (
           <div className="mt-7 grid gap-3">
@@ -344,13 +522,13 @@ export function CaptiveFlow({ forceDemo = false }: { forceDemo?: boolean }) {
               href={redirectUrl}
               className="grid h-12 w-full place-items-center rounded-xl bg-hotel-600 px-5 text-sm font-bold text-white shadow-lg shadow-hotel-900/15 hover:bg-hotel-700"
             >
-              {language === "es" ? "Simular Internet y redirigir" : "Simulate Internet access"}
+              {t.demoButton}
             </a>
             <button
               onClick={() => setAuthorization(undefined)}
               className="h-11 w-full rounded-xl border border-slate-200 bg-white px-5 text-sm font-bold text-slate-700 hover:bg-slate-50"
             >
-              {language === "es" ? "Probar otra vez" : "Try again"}
+              {t.retryButton}
             </button>
           </div>
         ) : (
@@ -363,7 +541,7 @@ export function CaptiveFlow({ forceDemo = false }: { forceDemo?: boolean }) {
               type="submit"
               className="h-12 w-full rounded-xl bg-hotel-600 px-5 text-sm font-bold text-white shadow-lg shadow-hotel-900/15 hover:bg-hotel-700"
             >
-              {language === "es" ? "Entrar en Internet" : "Go online"}
+              {t.onlineButton}
             </button>
           </form>
         )}
@@ -373,7 +551,10 @@ export function CaptiveFlow({ forceDemo = false }: { forceDemo?: boolean }) {
 
   return (
     <>
-      <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 sm:px-9">
+      <div
+        className="flex items-center justify-between border-b border-slate-100 px-6 py-4 sm:px-9"
+        dir={isRtl ? "rtl" : "ltr"}
+      >
         <div className="flex items-center gap-2">
           {context.portal?.logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -396,29 +577,34 @@ export function CaptiveFlow({ forceDemo = false }: { forceDemo?: boolean }) {
             <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-slate-800">
               {context.siteName}
             </span>
-            <span className="block text-[9px] text-slate-400">Guest WiFi</span>
+            <span className="block text-[9px] text-slate-400">{t.guestWifi}</span>
           </span>
         </div>
         {context.languages.length > 1 ? (
-          <button
-            onClick={() => setLanguage((value) => (value === "es" ? "en" : "es"))}
-            className="flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600"
+          <select
+            aria-label="Idioma"
+            value={language}
+            onChange={(event) => setLanguage(event.target.value as Locale)}
+            className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 outline-none"
           >
-            <span>{language.toUpperCase()}</span>
-            <ChevronDown className="size-3" />
-          </button>
+            {supportedLocales
+              .filter((locale) => context.languages.includes(locale))
+              .map((locale) => (
+                <option key={locale} value={locale}>
+                  {localeLabels[locale]}
+                </option>
+              ))}
+          </select>
         ) : null}
       </div>
-      <div className="px-6 pb-7 pt-6 sm:px-9 sm:pb-9">
+      <div className="px-6 pb-7 pt-6 sm:px-9 sm:pb-9" dir={isRtl ? "rtl" : "ltr"}>
         <div className="text-center">
           <span className="mx-auto grid size-11 place-items-center rounded-2xl bg-hotel-50 text-hotel-700">
             <Wifi className="size-5" />
           </span>
           <h1 className="mt-4 text-2xl font-extrabold tracking-[-0.035em] text-slate-950">
             {context.portal?.headline ??
-              (language === "es"
-                ? `Bienvenido a ${context.siteName}`
-                : `Welcome to ${context.siteName}`)}
+              t.welcome(context.siteName)}
           </h1>
           <p className="mt-2 text-sm leading-6 text-slate-500">
             {context.portal?.body ?? t.description}
@@ -464,9 +650,7 @@ export function CaptiveFlow({ forceDemo = false }: { forceDemo?: boolean }) {
         <form onSubmit={authorize} className="mt-5 grid gap-4">
           {method === "click" ? (
             <div className="rounded-xl border border-hotel-100 bg-hotel-50/60 px-4 py-3 text-xs leading-5 text-hotel-800">
-              {language === "es"
-                ? "Acceso inmediato tras aceptar las condiciones. No solicitaremos datos personales adicionales."
-                : "Immediate access after accepting the terms. No additional personal information is requested."}
+              {t.clickInfo}
             </div>
           ) : null}
           {method === "email" ? (
@@ -482,7 +666,7 @@ export function CaptiveFlow({ forceDemo = false }: { forceDemo?: boolean }) {
                     minLength={1}
                     maxLength={80}
                     className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-normal outline-none focus:border-hotel-500"
-                    placeholder={language === "es" ? "Tu nombre" : "Your name"}
+                    placeholder={t.firstNamePlaceholder}
                   />
                 </label>
                 <label className="grid gap-1.5 text-xs font-bold text-slate-700">
@@ -495,7 +679,7 @@ export function CaptiveFlow({ forceDemo = false }: { forceDemo?: boolean }) {
                     minLength={1}
                     maxLength={120}
                     className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-normal outline-none focus:border-hotel-500"
-                    placeholder={language === "es" ? "Tus apellidos" : "Your surname"}
+                    placeholder={t.lastNamePlaceholder}
                   />
                 </label>
               </div>
@@ -509,7 +693,7 @@ export function CaptiveFlow({ forceDemo = false }: { forceDemo?: boolean }) {
                     autoComplete="email"
                     required
                     className="h-11 w-full rounded-xl border border-slate-200 pl-10 pr-3 text-sm font-normal outline-none focus:border-hotel-500"
-                    placeholder="nombre@ejemplo.com"
+                    placeholder={t.emailPlaceholder}
                   />
                 </span>
               </label>
@@ -584,7 +768,7 @@ export function CaptiveFlow({ forceDemo = false }: { forceDemo?: boolean }) {
             <>
               <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
                 <span className="h-px flex-1 bg-slate-200" />
-                {language === "es" ? "o" : "or"}
+                {t.or}
                 <span className="h-px flex-1 bg-slate-200" />
               </div>
               <button

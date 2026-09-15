@@ -6,6 +6,7 @@ import type {
   CaptiveAuthorizationResult,
   CaptiveAuthorize,
   CaptiveLegalDocument,
+  Locale,
   LoginMethod,
 } from "@wifi/contracts";
 import { compileSupportedReplyAttributes } from "@wifi/radius";
@@ -208,7 +209,7 @@ export class PrismaCaptiveRepository implements CaptiveRepository {
     tenantId: string,
     siteName: string,
     legalVersionId: string,
-    locale: "es" | "en",
+    locale: Locale,
   ): Promise<CaptiveLegalDocument | undefined> {
     return this.database.withTenant(tenantId, async (transaction) => {
       const legal = await transaction.legalVersion.findFirst({
@@ -533,7 +534,7 @@ export class PrismaCaptiveRepository implements CaptiveRepository {
       where: {
         tenantId: route.tenantId,
         status: "published",
-        locale: { in: ["es", "en"] },
+        locale: { in: ["es", "en", "de", "fr", "ar"] },
         publishedAt: { lte: now },
         document: { kind: "terms" },
       },
@@ -543,8 +544,12 @@ export class PrismaCaptiveRepository implements CaptiveRepository {
     const seenLocales = new Set<string>();
     const legalVersions = legalCandidates
       .filter(
-        (candidate): candidate is { id: string; locale: "es" | "en" } =>
-          candidate.locale === "es" || candidate.locale === "en",
+        (candidate): candidate is { id: string; locale: Locale } =>
+          candidate.locale === "es" ||
+          candidate.locale === "en" ||
+          candidate.locale === "de" ||
+          candidate.locale === "fr" ||
+          candidate.locale === "ar",
       )
       .filter((candidate) => {
         if (seenLocales.has(candidate.locale)) return false;

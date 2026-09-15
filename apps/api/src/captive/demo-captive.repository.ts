@@ -3,6 +3,7 @@ import type {
   CaptiveAuthorize,
   CaptiveAuthorizationResult,
   CaptiveLegalDocument,
+  Locale,
 } from "@wifi/contracts";
 import { constantTimeEqual, keyedDigest } from "@wifi/security";
 
@@ -23,7 +24,26 @@ const ids = {
 const demoLegalContent = {
   es: "La red se ofrece para proporcionar acceso a Internet durante la estancia. No se permite utilizarla para actividades ilícitas, interferir con otros usuarios o eludir las medidas de seguridad. Al aceptar estas condiciones, autorizas que el establecimiento pueda enviarte ofertas, ventajas y comunicaciones comerciales relacionadas con sus servicios.",
   en: "The network is provided for Internet access during the stay. It must not be used for unlawful activity, interference with other users, or circumvention of security controls. By accepting these terms, you authorize the venue to send you offers, benefits and commercial communications related to its services.",
+  de: "Das WLAN wird bereitgestellt, um während Ihres Aufenthalts Internetzugang zu ermöglichen. Es darf nicht für rechtswidrige Aktivitäten, zur Störung anderer Nutzer oder zur Umgehung von Sicherheitsmaßnahmen verwendet werden. Mit der Annahme dieser Bedingungen stimmen Sie zu, dass der Betrieb Ihnen Angebote, Vorteile und kommerzielle Mitteilungen im Zusammenhang mit seinen Dienstleistungen senden darf.",
+  fr: "Le réseau WiFi est fourni afin de permettre l’accès à Internet pendant votre séjour. Il ne doit pas être utilisé pour des activités illicites, pour perturber d’autres utilisateurs ou pour contourner les mesures de sécurité. En acceptant ces conditions, vous autorisez l’établissement à vous envoyer des offres, avantages et communications commerciales liées à ses services.",
+  ar: "يتم توفير شبكة WiFi لإتاحة الوصول إلى الإنترنت أثناء إقامتك. لا يجوز استخدامها في أنشطة غير قانونية أو للتأثير على المستخدمين الآخرين أو لتجاوز إجراءات الأمان. بقبول هذه الشروط، فإنك تسمح للمنشأة بإرسال عروض ومزايا ورسائل تجارية متعلقة بخدماتها.",
 } as const;
+
+const demoLegalVersionIds: Record<Locale, string> = {
+  es: ids.legalVersionId,
+  en: "0198be3c-70f4-7a10-9fc4-3f2f48a01005",
+  de: "0198be3c-70f4-7a10-9fc4-3f2f48a01006",
+  fr: "0198be3c-70f4-7a10-9fc4-3f2f48a01007",
+  ar: "0198be3c-70f4-7a10-9fc4-3f2f48a01008",
+};
+
+const demoLegalTitles: Record<Locale, string> = {
+  es: "Condiciones de uso y privacidad",
+  en: "Terms of use and privacy",
+  de: "Nutzungsbedingungen und Datenschutz",
+  fr: "Conditions d’utilisation et confidentialité",
+  ar: "شروط الاستخدام والخصوصية",
+};
 
 @Injectable()
 export class DemoCaptiveRepository implements CaptiveRepository {
@@ -43,10 +63,10 @@ export class DemoCaptiveRepository implements CaptiveRepository {
       ...ids,
       siteName: "Entelsat",
       nasIdentifier: "gateway-casa",
-      legalVersions: [
-        { id: ids.legalVersionId, locale: "es" },
-        { id: "0198be3c-70f4-7a10-9fc4-3f2f48a01005", locale: "en" },
-      ],
+      legalVersions: Object.entries(demoLegalVersionIds).map(([locale, id]) => ({
+        id,
+        locale: locale as Locale,
+      })),
       allowedLoginOrigins: ["https://hotspot.local", "http://hotspot.local"],
       availableMethods: ["email", "voucher"],
     };
@@ -74,15 +94,14 @@ export class DemoCaptiveRepository implements CaptiveRepository {
     tenantId: string,
     siteName: string,
     legalVersionId: string,
-    locale: "es" | "en",
+    locale: Locale,
   ): Promise<CaptiveLegalDocument | undefined> {
-    const expectedId =
-      locale === "es" ? ids.legalVersionId : "0198be3c-70f4-7a10-9fc4-3f2f48a01005";
+    const expectedId = demoLegalVersionIds[locale];
     if (tenantId !== ids.tenantId || legalVersionId !== expectedId) return undefined;
     return {
       id: expectedId,
       siteName,
-      title: locale === "es" ? "Condiciones de uso y privacidad" : "Terms of use and privacy",
+      title: demoLegalTitles[locale],
       kind: "terms",
       version: 1,
       locale,

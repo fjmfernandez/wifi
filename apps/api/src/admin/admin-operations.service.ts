@@ -468,7 +468,7 @@ export class AdminOperationsService {
           status: "active",
           timezone: input.timezone,
           countryCode: input.countryCode,
-          languages: ["es"],
+          languages: ["es", "en", "de", "fr", "ar"],
           branding: {},
         },
       });

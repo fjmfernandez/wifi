@@ -5,7 +5,7 @@ export type Id = z.infer<typeof idSchema>;
 
 export const isoDateTimeSchema = z.iso.datetime({ offset: true });
 
-export const localeSchema = z.enum(["es", "en"]);
+export const localeSchema = z.enum(["es", "en", "de", "fr", "ar"]);
 export type Locale = z.infer<typeof localeSchema>;
 
 export const environmentSchema = z.enum(["development", "test", "staging", "production"]);
